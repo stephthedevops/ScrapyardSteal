@@ -1,0 +1,36 @@
+Overview
+In this meeting, Nathan Engert and Steph Hicks discuss the concept and development plan for a multiplayer clicker game set in a shared 'petrie dish' world. Nathan outlines core gameplay involving territorial expansion through growth, attack, and defense mechanics, where players control small factories or organisms competing for tiles. Steph contributes ideas on combat stalemates, steering growth, and thematic elements like a scrapyard setting with tank-like machines collecting scrap.
+They explore potential game features such as different attack types, multiple resources, and movement, agreeing to keep the initial version simple and stationary for playability. Technical discussions cover possible development platforms including Phaser, Godot, and Cocos Creator, with Nathan expressing unfamiliarity and caution about committing to new technologies. Team roles are clarified with Kiro expected to handle coding, and prize money distribution is briefly considered.
+Steph plans to share the game summary with the wider team for feedback, while Nathan remains open to assisting but hesitant to fully commit without more clarity. Overall, the meeting establishes a foundational game concept, initial design decisions, and preliminary development considerations to guide the team's next steps.
+
+Detailed Summary
+Multiplayer Clicker Game Concept
+Nathan Engert introduces a multiplayer clicker game concept where players start in a shared 'petrie dish' world with 10-20 participants. Each player controls a small organism or factory with a few buttons to grow, attack, or defend, aiming to take over tiles on a grid. The game focuses on strategic growth and combat, where players expand territory and engage in battles based on attack and defense stats.
+	•	Nathan Engert explains the game involves players growing their organism or factory by clicking buttons to take over tiles.
+	•	Nathan Engert describes combat mechanics where the player with the highest attack takes over the opponent's territory.
+	•	Nathan Engert notes that defeated players assist the victor in expanding territory rather than being eliminated.
+Combat and Territory Mechanics
+Steph Hicks and Nathan discuss how combat and territory control might work, including scenarios where players have similar attack and defense values leading to stalemates. They consider mechanics such as shared borders, gradual tile takeover, and steering growth direction. The discussion explores balancing attack, defense, and growth to create engaging gameplay dynamics.
+	•	Steph Hicks suggests that when two players have similar attack and defense, they might share a border until one gains an advantage.
+	•	Nathan Engert proposes that tile takeover could be gradual and influenced by border length and attack strength.
+	•	Steph Hicks introduces the idea of steering growth towards specific opponents to influence territorial expansion.
+Game Setting and Thematic Elements
+The team explores thematic ideas, such as framing the game world as a scrapyard where players control tank-like machines with magnets to collect scrap and grow. This setting supports the mechanics of territorial expansion and resource gathering. They emphasize the importance of balancing growth speed, defense, and aggression to maintain strategic depth.
+	•	Steph Hicks envisions the game as a scrapyard where machines collect scrap to grow.
+	•	Nathan Engert agrees that growth increases income, which fuels further expansion and upgrades.
+	•	Nathan Engert highlights the strategic balance between growing quickly, defending, and attacking others.
+Potential Game Features and Complexity
+The conversation touches on possible future features like different attack types with strengths and weaknesses, multiple resource types, and movement mechanics. They agree to keep the initial version simple with stationary players and a single resource to ensure playability before adding complexity.
+	•	Steph Hicks suggests adding different attack types that counter each other in future iterations.
+	•	Nathan Engert supports starting with a single resource and stationary gameplay for the first version.
+	•	Steph Hicks notes that movement and multiple resources could be added later to enrich gameplay.
+Technical Tools and Development Considerations
+Steph and Nathan discuss potential game development platforms and coding languages, referencing suggestions from an AI assistant and team member Kiro. They mention Phaser, Godot, Cocos Creator, and Defold as options, noting some are sponsors of the challenge. Nathan expresses unfamiliarity with these technologies and hesitance to commit fully without more experience.
+	•	Steph Hicks mentions AI and team suggestions for using Phaser, Godot, and Cocos Creator for development.
+	•	Nathan Engert acknowledges Phaser is a sponsor but is unfamiliar with the technologies.
+	•	Nathan Engert expresses hesitation to commit two weeks to learning new tools without certainty.
+Team Roles and Prize Considerations
+The team briefly discusses roles, with Kiro expected to handle coding. They also consider prize money distribution if they win, weighing full partnership versus partial involvement. Nathan is open to helping but cautious about overcommitting, while Steph plans to share the game summary with others for feedback.
+	•	Steph Hicks notes Kiro will likely do the coding work.
+	•	Steph Hicks raises the topic of prize money splitting and partnership levels.
+	•	Nathan Engert is willing to help but hesitant to fully commit without clarity on roles and technology.
