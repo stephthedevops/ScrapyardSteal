@@ -1,0 +1,235 @@
+import Phaser from "phaser";
+
+/** Industrial/scrapyard player color palette */
+const PLAYER_COLORS: number[] = [
+  0xc45a2d, // rust orange
+  0x4a7fa5, // steel blue
+  0x5a8a5e, // copper green
+  0xb8963e, // brass yellow
+  0x8b5e3c, // bronze brown
+  0x7a5195, // iron purple
+  0xa63d40, // crimson rust
+  0x3d8a8a, // teal patina
+  0x9b7a3c, // aged gold
+  0x5c6b73, // gunmetal
+  0xc97b3d, // amber
+  0x4e7a6e, // verdigris
+  0x8c5050, // dark rose
+  0x6b7b3a, // olive drab
+  0x7a6a5a, // warm gray
+  0x5a6e8a, // slate blue
+  0x9a6a4a, // sienna
+  0x4a8a6a, // jade
+  0x8a6a7a, // mauve steel
+  0x6a7a4a, // moss
+];
+
+const NEUTRAL_COLOR = 0x3a3a3a;
+const GRID_LINE_COLOR = 0x2a2a2a;
+const HIGHLIGHT_COLOR = 0xffcc44;
+const HIGHLIGHT_DIRECTION_COLOR = 0xffee88;
+const ABSORPTION_FLASH_COLOR = 0xffffff;
+
+/** Padding around the grid area in pixels */
+const GRID_PADDING = 10;
+
+/** Game area dimensions (matching Phaser config) */
+const GAME_WIDTH = 800;
+const GAME_HEIGHT = 600;
+
+export class GridRenderer {
+  private scene: Phaser.Scene;
+  private graphics: Phaser.GameObjects.Graphics;
+  private gridWidth: number;
+  private gridHeight: number;
+  private tileSize: number;
+  private offsetX: number;
+  private offsetY: number;
+  private playerColorMap: Map<string, number> = new Map();
+  private nextColorIndex = 0;
+
+  constructor(scene: Phaser.Scene, gridWidth: number, gridHeight: number) {
+    this.scene = scene;
+    this.gridWidth = gridWidth;
+    this.gridHeight = gridHeight;
+    this.graphics = scene.add.graphics();
+
+    // Calculate tile size to fit the grid within the game area with padding
+    const availableWidth = GAME_WIDTH - GRID_PADDING * 2;
+    const availableHeight = GAME_HEIGHT - GRID_PADDING * 2;
+    this.tileSize = Math.floor(
+      Math.min(availableWidth / gridWidth, availableHeight / gridHeight)
+    );
+
+    // Center the grid in the game area
+    const totalGridWidth = this.tileSize * gridWidth;
+    const totalGridHeight = this.tileSize * gridHeight;
+    this.offsetX = Math.floor((GAME_WIDTH - totalGridWidth) / 2);
+    this.offsetY = Math.floor((GAME_HEIGHT - totalGridHeight) / 2);
+  }
+
+  /** Get or assign a color for a player */
+  private getPlayerColor(ownerId: string): number {
+    if (!ownerId || ownerId === "") {
+      return NEUTRAL_COLOR;
+    }
+    let color = this.playerColorMap.get(ownerId);
+    if (color === undefined) {
+      color = PLAYER_COLORS[this.nextColorIndex % PLAYER_COLORS.length];
+      this.playerColorMap.set(ownerId, color);
+      this.nextColorIndex++;
+    }
+    return color;
+  }
+
+  /** Convert grid coordinates to pixel position */
+  private gridToPixel(x: number, y: number): { px: number; py: number } {
+    return {
+      px: this.offsetX + x * this.tileSize,
+      py: this.offsetY + y * this.tileSize,
+    };
+  }
+
+  /**
+   * Draw a tile at grid position with the player's color or neutral color.
+   * If animate=true, play a brief scale-pulse tween on the tile.
+   */
+  renderTile(x: number, y: number, ownerId: string, animate?: boolean): void {
+    const color = this.getPlayerColor(ownerId);
+    const { px, py } = this.gridToPixel(x, y);
+
+    // Draw filled tile
+    this.graphics.fillStyle(color, 1);
+    this.graphics.fillRect(px, py, this.tileSize, this.tileSize);
+
+    // Draw grid line border
+    this.graphics.lineStyle(1, GRID_LINE_COLOR, 1);
+    this.graphics.strokeRect(px, py, this.tileSize, this.tileSize);
+
+    if (animate) {
+      this.playClaimAnimation(px, py);
+    }
+  }
+
+  /** Play a brief scale-pulse animation on a tile */
+  private playClaimAnimation(px: number, py: number): void {
+    const flash = this.scene.add.rectangle(
+      px + this.tileSize / 2,
+      py + this.tileSize / 2,
+      this.tileSize,
+      this.tileSize,
+      0xffffff,
+      0.6
+    );
+    flash.setDepth(10);
+
+    this.scene.tweens.add({
+      targets: flash,
+      scaleX: 1.3,
+      scaleY: 1.3,
+      alpha: 0,
+      duration: 300,
+      ease: "Power2",
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  /**
+   * Draw highlight borders around claimable tiles.
+   * Tiles matching the selected direction get a brighter highlight.
+   */
+  highlightClaimable(
+    tiles: { x: number; y: number }[],
+    direction: string
+  ): void {
+    for (const tile of tiles) {
+      const { px, py } = this.gridToPixel(tile.x, tile.y);
+      const isBright = this.isTileInDirection(tile, direction);
+      const color = isBright ? HIGHLIGHT_DIRECTION_COLOR : HIGHLIGHT_COLOR;
+
+      this.graphics.lineStyle(2, color, isBright ? 1 : 0.6);
+      this.graphics.strokeRect(px + 1, py + 1, this.tileSize - 2, this.tileSize - 2);
+    }
+  }
+
+  /** Check if a tile lies in the given direction (simple quadrant check) */
+  private isTileInDirection(
+    tile: { x: number; y: number },
+    direction: string
+  ): boolean {
+    if (!direction || direction === "") return false;
+
+    // Use grid center as reference when no territory centroid is available
+    const cx = this.gridWidth / 2;
+    const cy = this.gridHeight / 2;
+    const dx = tile.x - cx;
+    const dy = tile.y - cy;
+
+    switch (direction) {
+      case "north":
+        return dy < 0;
+      case "south":
+        return dy > 0;
+      case "east":
+        return dx > 0;
+      case "west":
+        return dx < 0;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Play a visual flash effect on the given tile positions (absorption effect).
+   */
+  playAbsorptionEffect(tiles: { x: number; y: number }[]): void {
+    for (const tile of tiles) {
+      const { px, py } = this.gridToPixel(tile.x, tile.y);
+
+      const flash = this.scene.add.rectangle(
+        px + this.tileSize / 2,
+        py + this.tileSize / 2,
+        this.tileSize,
+        this.tileSize,
+        ABSORPTION_FLASH_COLOR,
+        0.8
+      );
+      flash.setDepth(10);
+
+      this.scene.tweens.add({
+        targets: flash,
+        alpha: 0,
+        scaleX: 1.5,
+        scaleY: 1.5,
+        duration: 500,
+        ease: "Power2",
+        onComplete: () => flash.destroy(),
+      });
+    }
+  }
+
+  /** Get the tile size (useful for click detection) */
+  getTileSize(): number {
+    return this.tileSize;
+  }
+
+  /** Get the grid offset (useful for click detection) */
+  getOffset(): { x: number; y: number } {
+    return { x: this.offsetX, y: this.offsetY };
+  }
+
+  /** Convert pixel coordinates to grid coordinates, or null if out of bounds */
+  pixelToGrid(px: number, py: number): { x: number; y: number } | null {
+    const gx = Math.floor((px - this.offsetX) / this.tileSize);
+    const gy = Math.floor((py - this.offsetY) / this.tileSize);
+    if (gx < 0 || gx >= this.gridWidth || gy < 0 || gy >= this.gridHeight) {
+      return null;
+    }
+    return { x: gx, y: gy };
+  }
+
+  /** Clear all graphics (call before full re-render) */
+  clear(): void {
+    this.graphics.clear();
+  }
+}
