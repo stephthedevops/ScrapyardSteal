@@ -2,3 +2,9 @@ node_modules/
 dist/
 dist-server/
 .env
+
+# Test artifacts
+tests/e2e/results/
+test-results/
+playwright-report/
+coverage/
