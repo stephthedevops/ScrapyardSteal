@@ -1,49 +1,41 @@
-import { Server } from "colyseus";
-import { createServer, IncomingMessage, ServerResponse } from "http";
+import config from "@colyseus/tools";
+import { monitor } from "@colyseus/monitor";
 import { GameRoom } from "./rooms/GameRoom";
 
-const port = Number(process.env.PORT) || 2567;
+export default config({
+  initializeGameServer: (gameServer) => {
+    gameServer.define("game", GameRoom);
+  },
 
-const httpServer = createServer(
-  (req: IncomingMessage, res: ServerResponse) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET");
-
-    if (req.url?.startsWith("/lookup")) {
-      const url = new URL(req.url, `http://localhost:${port}`);
-      const code = (url.searchParams.get("code") || "").toUpperCase();
+  initializeExpress: (app) => {
+    // Short code lookup
+    app.get("/lookup", (req: any, res: any) => {
+      const code = (String(req.query.code || "")).toUpperCase();
       const roomId = GameRoom.shortCodeMap.get(code);
       if (roomId) {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ roomId }));
+        res.json({ roomId });
       } else {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Room not found" }));
+        res.status(404).json({ error: "Room not found" });
       }
-      return;
-    }
+    });
 
-    if (req.url?.startsWith("/public")) {
+    // Public room finder
+    app.get("/public", (_req: any, res: any) => {
       const firstPublicCode = GameRoom.publicRooms.values().next().value;
       if (firstPublicCode) {
         const roomId = GameRoom.shortCodeMap.get(firstPublicCode);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ roomId, code: firstPublicCode }));
+        res.json({ roomId, code: firstPublicCode });
       } else {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "No public rooms available" }));
+        res.status(404).json({ error: "No public rooms available" });
       }
-      return;
-    }
+    });
 
-    res.writeHead(200);
-    res.end("Scrapyard Steal server");
-  }
-);
+    // Colyseus monitor
+    app.use("/colyseus", monitor());
 
-const server = new Server({ server: httpServer });
-server.define("game", GameRoom);
-
-server.listen(port).then(() => {
-  console.log(`Colyseus server listening on port ${port}`);
+    // Health check
+    app.get("/", (_req: any, res: any) => {
+      res.send("Scrapyard Steal server");
+    });
+  },
 });

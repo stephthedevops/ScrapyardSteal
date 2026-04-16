@@ -14,9 +14,10 @@
     "test": "vitest --run"
   },
   "dependencies": {
-    "colyseus": "^0.15.0",
     "@colyseus/monitor": "^0.15.0",
-    "colyseus.js": "^0.15.0",
+    "@colyseus/tools": "^0.15.49",
+    "colyseus": "^0.15.57",
+    "colyseus.js": "^0.15.28",
     "phaser": "^3.80.0"
   },
   "devDependencies": {
