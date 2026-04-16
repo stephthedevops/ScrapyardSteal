@@ -1,8 +1,8 @@
-# Scrap Machine — Game Design Document
+# Scrapyard Steal — Game Design Document
 
 ## Overview
 
-Scrap Machine is a multiplayer clicker/strategy game built for the Gamedev.js Jam 2026 (theme: "Machines"). Players share a "petri dish" world with 10–20 participants, each controlling a small factory or machine in a scrapyard setting. The goal is to grow your machine by collecting scrap tiles, expanding territory, and absorbing opponents — not eliminating them.
+Scrapyard Steal is a multiplayer clicker/strategy game built for the Gamedev.js Jam 2026 (theme: "Machines"). Players share a "petri dish" world with 10–20 participants, each controlling a small factory or machine in a scrapyard setting. The goal is to grow your machine by collecting scrap tiles, expanding territory, and absorbing opponents — not eliminating them.
 
 ## Core Concept
 
@@ -56,18 +56,33 @@ Each player starts with a small organism-like factory and a few buttons: grow, a
 
 The game is set in a scrapyard. Players control tank-like machines with magnets that collect scrap to grow. Tiles represent scrap that machines integrate into their body. Absorbing an opponent means salvaging their parts. The visual language should lean into industrial/mechanical aesthetics — rust, magnets, welded metal, sparks.
 
-## Technical Considerations
+## Technical Stack
 
-### Engine Options
-- **Phaser** — Strong HTML5 support, sponsor of the jam, dedicated challenge track with extra prizes.
-- **Godot** — Familiar to some developers, supports HTML5 export.
-- **Cocos Creator** — Full-featured 2D/3D engine with web export.
-- **Defold** — Lightweight, also a jam sponsor.
+| Layer | Tech |
+|-------|------|
+| Game engine (client) | Phaser |
+| Multiplayer framework | Colyseus |
+| Server runtime | Node.js |
+| Language | TypeScript |
+| Build tool | Vite |
+| Hosting (client) | itch.io |
+| Hosting (server) | TBD (Fly.io / Railway) |
 
-Engine choice is still open pending team familiarity and comfort level.
+### Repository
+## Open Questions
+
+- How to handle the learning curve for Phaser/Colyseus within the jam window?
+- Movement mechanics: defer entirely or attempt a basic version during the jam?
+- How many simultaneous players can the design support before performance degrades?
+- Server hosting: which platform for the Colyseus backend?DX.
 
 ### Target Platform
 - Web browser (HTML5) — required for Gamedev.js Jam submission.
+
+### Challenge Tracks to Enter
+- **Build it with Phaser** — Phaser Editor Pro subscriptions + Vampire Survivors bundles.
+- **Open Source by GitHub** — Repo is already public. Prizes: GitHub Copilot Pro licenses.
+- **Deploy to Wavedash** — Cash prizes ($1000 / $750 / $500 / $250).
 
 ## Open Questions
 

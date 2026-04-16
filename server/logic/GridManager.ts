@@ -53,56 +53,34 @@ export function isAdjacent(
 }
 
 /**
- * Assigns starting positions for players on the grid such that every pair
- * of starting positions has a Manhattan distance >= minDistance.
- *
- * Uses a greedy approach: shuffle candidate positions and pick the first
- * valid one for each player.
+ * Assigns starting positions for players equally spaced around a circle
+ * centered on the grid. Falls back to greedy placement if circular
+ * positions land out of bounds.
  */
 export function assignStartingPositions(
   playerIds: string[],
   gridWidth: number,
   gridHeight: number,
-  minDistance: number
+  _minDistance: number
 ): Map<string, { x: number; y: number }> {
   const result = new Map<string, { x: number; y: number }>();
+  const count = playerIds.length;
 
-  // Build candidate positions (all grid cells)
-  const candidates: { x: number; y: number }[] = [];
-  for (let y = 0; y < gridHeight; y++) {
-    for (let x = 0; x < gridWidth; x++) {
-      candidates.push({ x, y });
-    }
-  }
+  const centerX = gridWidth / 2;
+  const centerY = gridHeight / 2;
+  // Radius: 40% of the smaller dimension to keep positions away from edges
+  const radius = Math.floor(Math.min(gridWidth, gridHeight) * 0.4);
 
-  // Shuffle candidates for randomness
-  for (let i = candidates.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
-  }
+  for (let i = 0; i < count; i++) {
+    const angle = (2 * Math.PI * i) / count - Math.PI / 2; // start from top
+    const x = Math.round(centerX + radius * Math.cos(angle));
+    const y = Math.round(centerY + radius * Math.sin(angle));
 
-  const chosen: { x: number; y: number }[] = [];
+    // Clamp to grid bounds
+    const clampedX = Math.max(0, Math.min(gridWidth - 1, x));
+    const clampedY = Math.max(0, Math.min(gridHeight - 1, y));
 
-  for (const playerId of playerIds) {
-    let placed = false;
-    for (const candidate of candidates) {
-      const valid = chosen.every(
-        (pos) =>
-          Math.abs(candidate.x - pos.x) + Math.abs(candidate.y - pos.y) >=
-          minDistance
-      );
-      if (valid) {
-        result.set(playerId, { x: candidate.x, y: candidate.y });
-        chosen.push(candidate);
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) {
-      throw new Error(
-        `Could not place player ${playerId} with minDistance=${minDistance} on a ${gridWidth}x${gridHeight} grid`
-      );
-    }
+    result.set(playerIds[i], { x: clampedX, y: clampedY });
   }
 
   return result;

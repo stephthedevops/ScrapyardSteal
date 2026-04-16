@@ -16,18 +16,48 @@ import {
 export class GameRoom extends Room<GameState> {
   maxClients = 20;
   private gameLoopInterval: ReturnType<typeof this.clock.setInterval> | null = null;
+  private hostId: string = "";
+
+  /** Global map of shortCode → roomId for lookups */
+  static shortCodeMap = new Map<string, string>();
+
+  private static generateShortCode(): string {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 to avoid confusion
+    let code = "";
+    for (let i = 0; i < 5; i++) {
+      code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return code;
+  }
 
   onCreate() {
     this.setState(new GameState());
     this.state.phase = "waiting";
-    console.log("GameRoom created");
+
+    // Generate unique 5-char short code
+    let code = GameRoom.generateShortCode();
+    while (GameRoom.shortCodeMap.has(code)) {
+      code = GameRoom.generateShortCode();
+    }
+    this.state.shortCode = code;
+    GameRoom.shortCodeMap.set(code, this.roomId);
+
+    console.log(`GameRoom created — code: ${code}, roomId: ${this.roomId}`);
 
     // --- Message Handlers ---
 
     this.onMessage("claimTile", (client, data: { x: number; y: number }) => {
       if (this.state.phase !== "active") return;
       const player = this.state.players.get(client.sessionId);
-      if (!player || player.absorbed) return;
+      if (!player) return;
+
+      // Determine the team leader — if absorbed, act on behalf of team leader
+      let leader = player;
+      if (player.absorbed && player.teamId) {
+        const teamLeader = this.state.players.get(player.teamId);
+        if (!teamLeader || teamLeader.absorbed) return;
+        leader = teamLeader;
+      }
 
       const { x, y } = data;
 
@@ -35,20 +65,20 @@ export class GameRoom extends Room<GameState> {
       const tile = this.state.tiles.find((t) => t.x === x && t.y === y);
       if (!tile || tile.ownerId !== "") return;
 
-      // Gather player's owned tiles for adjacency check
-      const playerTiles = this.state.tiles.filter(
-        (t) => t.ownerId === client.sessionId
+      // Gather leader's owned tiles for adjacency check
+      const leaderTiles = this.state.tiles.filter(
+        (t) => t.ownerId === leader.id
       );
-      if (!isAdjacent(x, y, playerTiles)) return;
+      if (!isAdjacent(x, y, leaderTiles)) return;
 
-      // Calculate cost and validate resources
-      const cost = calculateTileClaimCost(player.tileCount);
-      if (player.resources < cost) return;
+      // Calculate cost and validate leader's resources
+      const cost = calculateTileClaimCost(leader.tileCount);
+      if (leader.resources < cost) return;
 
-      // Apply the claim
-      player.resources -= cost;
-      tile.ownerId = player.id;
-      player.tileCount += 1;
+      // Apply the claim for the leader
+      leader.resources -= cost;
+      tile.ownerId = leader.id;
+      leader.tileCount += 1;
     });
 
     this.onMessage("upgradeAttack", (client) => {
@@ -85,24 +115,100 @@ export class GameRoom extends Room<GameState> {
 
       player.direction = data.direction;
     });
+
+    // Mine scrap from a gear tile
+    this.onMessage("mineGear", (client, data: { x: number; y: number }) => {
+      if (this.state.phase !== "active") return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      // Determine the team leader
+      let leader = player;
+      if (player.absorbed && player.teamId) {
+        const teamLeader = this.state.players.get(player.teamId);
+        if (!teamLeader || teamLeader.absorbed) return;
+        leader = teamLeader;
+      }
+
+      const tile = this.state.tiles.find((t) => t.x === data.x && t.y === data.y);
+      if (!tile || !tile.hasGear || tile.gearScrap <= 0) return;
+
+      // Only mine if tile is unclaimed or owned by the team leader
+      if (tile.ownerId !== "" && tile.ownerId !== leader.id) return;
+
+      // Extract scrap equal to leader's attack stat, capped by remaining gearScrap
+      const extracted = Math.min(leader.attack, tile.gearScrap);
+      tile.gearScrap -= extracted;
+      leader.resources += extracted;
+
+      // Remove gear when depleted
+      if (tile.gearScrap <= 0) {
+        tile.hasGear = false;
+      }
+    });
+
+    // Host starts the game
+    this.onMessage("startGame", (client) => {
+      if (this.state.phase !== "waiting") return;
+      if (client.sessionId !== this.hostId) return; // only host can start
+      if (this.state.players.size < 1) return;
+      this.startGame();
+    });
+
+    // Player sets their name (adj + noun)
+    this.onMessage("setName", (client, data: { adj: string; noun: string }) => {
+      if (this.state.phase !== "waiting") return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      player.nameAdj = (data.adj || "").slice(0, 16);
+      player.nameNoun = (data.noun || "").slice(0, 16);
+      player.teamName = `${player.nameAdj} ${player.nameNoun}`;
+    });
+
+    // Player selects a color
+    this.onMessage("selectColor", (client, data: { color: number }) => {
+      if (this.state.phase !== "waiting") return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      // Check if color is already taken by another player
+      let taken = false;
+      this.state.players.forEach((p, key) => {
+        if (key !== client.sessionId && p.color === data.color) {
+          taken = true;
+        }
+      });
+      if (taken) return;
+
+      player.color = data.color;
+    });
   }
 
   onJoin(client: Client) {
     const player = new Player();
     player.id = client.sessionId;
+    player.teamId = client.sessionId; // starts as own team lead
+    player.isTeamLead = true;
     player.resources = 0;
     player.attack = 1;
     player.defense = 1;
     player.tileCount = 1;
     player.absorbed = false;
     player.direction = "";
+    player.color = -1;
+    player.nameAdj = "";
+    player.nameNoun = "";
+    player.teamName = "";
+
+    // First player to join becomes the host
+    if (this.state.players.size === 0) {
+      this.hostId = client.sessionId;
+      this.state.hostId = client.sessionId;
+      player.isHost = true;
+    }
 
     this.state.players.set(client.sessionId, player);
-    console.log(`${client.sessionId} joined`);
-
-    if (this.state.players.size >= 2 && this.state.phase === "waiting") {
-      this.startGame();
-    }
+    console.log(`${client.sessionId} joined (host: ${client.sessionId === this.hostId})`);
   }
 
   onLeave(client: Client) {
@@ -113,13 +219,24 @@ export class GameRoom extends Room<GameState> {
       }
     });
 
-    // Update tileCount before removal
     const player = this.state.players.get(client.sessionId);
     if (player) {
       player.tileCount = 0;
     }
 
     this.state.players.delete(client.sessionId);
+
+    // If the host left during waiting, assign a new host
+    if (client.sessionId === this.hostId && this.state.phase === "waiting") {
+      const nextKey = this.state.players.keys().next().value;
+      if (nextKey) {
+        this.hostId = nextKey;
+        this.state.hostId = nextKey;
+        const nextHost = this.state.players.get(nextKey);
+        if (nextHost) nextHost.isHost = true;
+      }
+    }
+
     console.log(`${client.sessionId} left`);
   }
 
@@ -128,6 +245,7 @@ export class GameRoom extends Room<GameState> {
       this.gameLoopInterval.clear();
       this.gameLoopInterval = null;
     }
+    GameRoom.shortCodeMap.delete(this.state.shortCode);
     console.log("GameRoom disposed");
   }
 
@@ -146,12 +264,30 @@ export class GameRoom extends Room<GameState> {
       5
     );
 
-    // Set starting tiles' ownerId to the player id
+    // Set starting tiles' ownerId to the player id and store spawn on player
     for (const [playerId, pos] of startingPositions) {
       const tile = tiles.find((t) => t.x === pos.x && t.y === pos.y);
       if (tile) {
         tile.ownerId = playerId;
+        tile.isSpawn = true;
       }
+      const player = this.state.players.get(playerId);
+      if (player) {
+        player.spawnX = pos.x;
+        player.spawnY = pos.y;
+      }
+    }
+
+    // Place gears on random neutral tiles (3 × player count)
+    const gearCount = playerIds.length * 3;
+    const neutralTiles = tiles.filter((t) => t.ownerId === "");
+    for (let i = neutralTiles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [neutralTiles[i], neutralTiles[j]] = [neutralTiles[j], neutralTiles[i]];
+    }
+    for (let i = 0; i < Math.min(gearCount, neutralTiles.length); i++) {
+      neutralTiles[i].hasGear = true;
+      neutralTiles[i].gearScrap = 50;
     }
 
     // Populate state
@@ -178,6 +314,18 @@ export class GameRoom extends Room<GameState> {
    */
   private gameTick() {
     if (this.state.phase !== "active") return;
+
+    // Countdown timer
+    this.state.timeRemaining -= 1;
+    if (this.state.timeRemaining <= 0) {
+      this.state.phase = "ended";
+      if (this.gameLoopInterval) {
+        this.gameLoopInterval.clear();
+        this.gameLoopInterval = null;
+      }
+      console.log("Game ended — time's up");
+      return;
+    }
 
     const { gridWidth, gridHeight } = this.state;
 
@@ -227,9 +375,27 @@ export class GameRoom extends Room<GameState> {
         // 5. Check for absorption: if fromPlayer's tileCount reaches 0
         if (fromPlayer && fromPlayer.tileCount <= 0) {
           fromPlayer.absorbed = true;
-          // Award bonus scrap: floor(0.25 * absorbed player's resources)
           if (toPlayer) {
+            // Award bonus scrap
             toPlayer.resources += Math.floor(0.25 * fromPlayer.resources);
+
+            // Prepend absorbed player's adjective(s) to absorber's team name
+            const absorbedAdj = fromPlayer.nameAdj || fromPlayer.teamName.split(" ").slice(0, -1).join(" ");
+            if (absorbedAdj) {
+              toPlayer.teamName = `${absorbedAdj} ${toPlayer.teamName}`;
+            }
+
+            // Move absorbed player to absorber's team
+            fromPlayer.teamId = toPlayer.id;
+            fromPlayer.isTeamLead = false;
+            fromPlayer.teamName = toPlayer.teamName;
+
+            // Update all existing team members' teamName too
+            this.state.players.forEach((p) => {
+              if (p.teamId === toPlayer.id && p.id !== toPlayer.id) {
+                p.teamName = toPlayer.teamName;
+              }
+            });
           }
         }
       }

@@ -2,26 +2,16 @@ import Phaser from "phaser";
 
 /** Industrial/scrapyard player color palette */
 const PLAYER_COLORS: number[] = [
-  0xc45a2d, // rust orange
-  0x4a7fa5, // steel blue
-  0x5a8a5e, // copper green
-  0xb8963e, // brass yellow
-  0x8b5e3c, // bronze brown
-  0x7a5195, // iron purple
-  0xa63d40, // crimson rust
-  0x3d8a8a, // teal patina
-  0x9b7a3c, // aged gold
-  0x5c6b73, // gunmetal
-  0xc97b3d, // amber
-  0x4e7a6e, // verdigris
-  0x8c5050, // dark rose
-  0x6b7b3a, // olive drab
-  0x7a6a5a, // warm gray
-  0x5a6e8a, // slate blue
-  0x9a6a4a, // sienna
-  0x4a8a6a, // jade
-  0x8a6a7a, // mauve steel
-  0x6a7a4a, // moss
+  0xb87333, // copper
+  0x4a8a5e, // corroded copper (green)
+  0xffd700, // gold
+  0x8a8a7a, // tarnished silver
+  0x7a3ea0, // titanium (purple)
+  0x0047ab, // cobalt
+  0xff00ff, // bismuth
+  0x8b4513, // rusty iron (brick)
+  0xdbe4eb, // chromium
+  0x36454f, // tungsten
 ];
 
 const NEUTRAL_COLOR = 0x3a3a3a;
@@ -68,6 +58,11 @@ export class GridRenderer {
     this.offsetY = Math.floor((GAME_HEIGHT - totalGridHeight) / 2);
   }
 
+  /** Set a player's color (from lobby selection) */
+  setPlayerColor(ownerId: string, color: number): void {
+    this.playerColorMap.set(ownerId, color);
+  }
+
   /** Get or assign a color for a player */
   private getPlayerColor(ownerId: string): number {
     if (!ownerId || ownerId === "") {
@@ -90,6 +85,26 @@ export class GridRenderer {
     };
   }
 
+  private spawnTiles: Set<string> = new Set();
+  private spawnIcons: Phaser.GameObjects.Text[] = [];
+  private gearTiles: Set<string> = new Set();
+  private gearIcons: Phaser.GameObjects.Text[] = [];
+
+  /** Mark a tile as having a gear decoration */
+  setGearTile(x: number, y: number): void {
+    this.gearTiles.add(`${x},${y}`);
+  }
+
+  /** Remove a gear tile (depleted) */
+  removeGearTile(x: number, y: number): void {
+    this.gearTiles.delete(`${x},${y}`);
+  }
+
+  /** Mark a tile as a spawn point */
+  setSpawnTile(x: number, y: number): void {
+    this.spawnTiles.add(`${x},${y}`);
+  }
+
   /**
    * Draw a tile at grid position with the player's color or neutral color.
    * If animate=true, play a brief scale-pulse tween on the tile.
@@ -105,6 +120,31 @@ export class GridRenderer {
     // Draw grid line border
     this.graphics.lineStyle(1, GRID_LINE_COLOR, 1);
     this.graphics.strokeRect(px, py, this.tileSize, this.tileSize);
+
+    // Draw factory icon on spawn tiles
+    if (this.spawnTiles.has(`${x},${y}`) && ownerId !== "") {
+      const fontSize = Math.max(6, Math.floor(this.tileSize * 0.5));
+      const icon = this.scene.add
+        .text(px + this.tileSize / 2, py + this.tileSize / 2, "🏭", {
+          fontSize: `${fontSize}px`,
+        })
+        .setOrigin(0.5)
+        .setDepth(5);
+      this.spawnIcons.push(icon);
+    }
+
+    // Draw gear icon on gear tiles (only if has remaining scrap and unclaimed or no owner)
+    if (this.gearTiles.has(`${x},${y}`)) {
+      const gearSize = Math.max(6, Math.floor(this.tileSize * 0.5));
+      const gearIcon = this.scene.add
+        .text(px + this.tileSize / 2, py + this.tileSize / 2, "⚙", {
+          fontSize: `${gearSize}px`,
+          color: "#888888",
+        })
+        .setOrigin(0.5)
+        .setDepth(4);
+      this.gearIcons.push(gearIcon);
+    }
 
     if (animate) {
       this.playClaimAnimation(px, py);
@@ -231,5 +271,9 @@ export class GridRenderer {
   /** Clear all graphics (call before full re-render) */
   clear(): void {
     this.graphics.clear();
+    this.spawnIcons.forEach((icon) => icon.destroy());
+    this.spawnIcons = [];
+    this.gearIcons.forEach((icon) => icon.destroy());
+    this.gearIcons = [];
   }
 }
