@@ -23,6 +23,22 @@ Add a checkbox line to the appropriate file:
 
 If you're not sure which file, add it to `backlog.md` and tag it for triage.
 
+## Assigning Work
+
+Add `@yourname` at the end of an item to claim it:
+
+```
+- [ ] Balance pass on tile claim cost @steph
+- [ ] Deploy to Wavedash @nathan
+```
+
+Multiple people can be assigned:
+```
+- [ ] Playtest with 4+ players @steph @nathan
+```
+
+To unassign, just remove the `@name`.
+
 ## Tags
 
 You can tag items to move them during triage. Add the tag in brackets after the checkbox:

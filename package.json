@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:prod": "VITE_SERVER_URL=wss://us-ord-ef0ec457.colyseus.cloud vite build",
     "preview": "vite preview",
     "server": "ts-node --project tsconfig.server.json server/index.ts",
     "server:dev": "nodemon --exec \"ts-node --project tsconfig.server.json\" server/index.ts",
