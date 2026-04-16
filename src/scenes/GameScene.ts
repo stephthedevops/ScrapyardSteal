@@ -12,29 +12,39 @@ export class GameScene extends Phaser.Scene {
   private localSessionId: string = "";
   private currentDirection: string = "";
   private absorbedPlayerIds: Set<string> = new Set();
+  private playerNameCache: Map<string, string> = new Map();
+  private gameEnded = false;
+  private tooltipText!: Phaser.GameObjects.Text;
   private connectingText: Phaser.GameObjects.Text | null = null;
 
   constructor() {
     super({ key: "GameScene" });
   }
 
-  create(): void {
-    // Show connecting message
-    this.connectingText = this.add
-      .text(400, 300, "Connecting...", {
-        fontSize: "24px",
-        color: "#e0a030",
-        fontFamily: "monospace",
-      })
-      .setOrigin(0.5);
-
-    // Instantiate NetworkManager and join game
-    this.networkManager = new NetworkManager();
-    this.networkManager.joinGame().then((room) => {
-      this.room = room;
-      this.localSessionId = room.sessionId;
+  create(data?: { room: any; networkManager: NetworkManager; sessionId: string }): void {
+    if (data?.room && data?.networkManager) {
+      // Came from LobbyScene with an existing connection
+      this.room = data.room;
+      this.networkManager = data.networkManager;
+      this.localSessionId = data.sessionId;
       this.setupStateListener();
-    });
+    } else {
+      // Direct connection fallback
+      this.connectingText = this.add
+        .text(400, 300, "Connecting...", {
+          fontSize: "24px",
+          color: "#e0a030",
+          fontFamily: "monospace",
+        })
+        .setOrigin(0.5);
+
+      this.networkManager = new NetworkManager();
+      this.networkManager.joinGame().then((room) => {
+        this.room = room;
+        this.localSessionId = room.sessionId;
+        this.setupStateListener();
+      });
+    }
 
     // Set up keyboard listeners for direction selection
     this.setupDirectionKeys();
@@ -42,6 +52,22 @@ export class GameScene extends Phaser.Scene {
     // Set up tile click handler
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       this.handleTileClick(pointer);
+    });
+
+    // Tooltip on hover
+    this.tooltipText = this.add
+      .text(0, 0, "", {
+        fontSize: "11px",
+        color: "#e0a030",
+        fontFamily: "monospace",
+        backgroundColor: "#1a1a1acc",
+        padding: { x: 6, y: 4 },
+      })
+      .setDepth(150)
+      .setAlpha(0);
+
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      this.handleTooltip(pointer);
     });
   }
 
@@ -74,10 +100,86 @@ export class GameScene extends Phaser.Scene {
 
       this.onStateUpdate(state);
     });
+
+    // Process current state immediately in case we missed the first event
+    if (this.room.state) {
+      const state = this.room.state;
+      if (!this.gridRenderer && state.gridWidth > 0) {
+        if (this.connectingText) {
+          this.connectingText.destroy();
+          this.connectingText = null;
+        }
+
+        this.gridRenderer = new GridRenderer(
+          this,
+          state.gridWidth,
+          state.gridHeight
+        );
+
+        this.hudManager = new HUDManager(this);
+
+        this.hudManager.onUpgradeAttack = () => {
+          this.networkManager.sendUpgradeAttack();
+        };
+        this.hudManager.onUpgradeDefense = () => {
+          this.networkManager.sendUpgradeDefense();
+        };
+      }
+      this.onStateUpdate(state);
+    }
+  }
+
+  private spawnTilesRegistered = false;
+
+  /** Get the effective player ID — team leader if absorbed */
+  private getEffectivePlayerId(state: any): string {
+    const localPlayer = state.players.get(this.localSessionId);
+    if (localPlayer?.absorbed && localPlayer?.teamId) {
+      return localPlayer.teamId;
+    }
+    return this.localSessionId;
   }
 
   private onStateUpdate(state: any): void {
     if (!this.gridRenderer || !this.hudManager) return;
+
+    // Register spawn and gear tiles once
+    if (!this.spawnTilesRegistered) {
+      state.tiles.forEach((tile: any) => {
+        if (tile.isSpawn) {
+          this.gridRenderer!.setSpawnTile(tile.x, tile.y);
+        }
+        if (tile.hasGear) {
+          this.gridRenderer!.setGearTile(tile.x, tile.y);
+        }
+      });
+      this.spawnTilesRegistered = true;
+    }
+
+    // Update gear tiles — remove depleted ones
+    state.tiles.forEach((tile: any) => {
+      if (!tile.hasGear) {
+        this.gridRenderer!.removeGearTile(tile.x, tile.y);
+      }
+    });
+
+    // Sync player colors from server state
+    // Override: render your team's tiles in YOUR original color so you always know your team
+    const localPlayer = state.players.get(this.localSessionId);
+    const myOriginalColor = localPlayer?.color ?? -1;
+    const myTeamId = this.getEffectivePlayerId(state);
+
+    state.players.forEach((player: any, key: string) => {
+      if (player.color >= 0) {
+        const playerId = player.id || key;
+        if (playerId === myTeamId && myOriginalColor >= 0) {
+          // My team leader's tiles render in MY chosen color
+          this.gridRenderer!.setPlayerColor(playerId, myOriginalColor);
+        } else {
+          this.gridRenderer!.setPlayerColor(playerId, player.color);
+        }
+      }
+    });
 
     // Clear and re-render all tiles
     this.gridRenderer.clear();
@@ -85,20 +187,22 @@ export class GameScene extends Phaser.Scene {
       this.gridRenderer!.renderTile(tile.x, tile.y, tile.ownerId);
     });
 
-    // Get local player stats
-    const localPlayer = state.players.get(this.localSessionId);
-    if (localPlayer) {
+    // Get effective player stats (team leader if absorbed)
+    const effectiveId = this.getEffectivePlayerId(state);
+    const effectivePlayer = state.players.get(effectiveId);
+    if (effectivePlayer) {
       this.hudManager.updateStats(
-        localPlayer.resources,
-        localPlayer.attack,
-        localPlayer.defense,
-        localPlayer.tileCount,
-        localPlayer.tileCount // income rate = tileCount (1 scrap/tile/sec)
+        effectivePlayer.resources,
+        effectivePlayer.attack,
+        effectivePlayer.defense,
+        effectivePlayer.tileCount,
+        effectivePlayer.tileCount,
+        state.timeRemaining
       );
 
       // Calculate upgrade costs
-      const attackCost = 50 * localPlayer.attack;
-      const defenseCost = 50 * localPlayer.defense;
+      const attackCost = 50 * effectivePlayer.attack;
+      const defenseCost = 50 * effectivePlayer.defense;
       this.hudManager.updateUpgradeCosts(attackCost, defenseCost);
     }
 
@@ -106,13 +210,19 @@ export class GameScene extends Phaser.Scene {
     const leaderboardData: { id: string; tileCount: number }[] = [];
     state.players.forEach((player: any, key: string) => {
       if (!player.absorbed) {
-        leaderboardData.push({ id: player.id || key, tileCount: player.tileCount });
+        leaderboardData.push({ id: player.teamName || `${player.nameAdj} ${player.nameNoun}`.trim() || key.slice(0, 10), tileCount: player.tileCount });
       }
     });
     this.hudManager.updateLeaderboard(leaderboardData);
 
     // Detect new absorptions and show notifications / effects
     this.detectAbsorptions(state);
+
+    // Check for game end
+    if (state.phase === "ended" && !this.gameEnded) {
+      this.gameEnded = true;
+      this.showEndScreen(state);
+    }
 
     // Highlight claimable tiles for local player
     this.highlightClaimableTiles(state);
@@ -126,7 +236,7 @@ export class GameScene extends Phaser.Scene {
     const neutralTiles: { x: number; y: number }[] = [];
 
     state.tiles.forEach((tile: any) => {
-      if (tile.ownerId === this.localSessionId) {
+      if (tile.ownerId === this.getEffectivePlayerId(state)) {
         playerTiles.push({ x: tile.x, y: tile.y });
       } else if (tile.ownerId === "") {
         neutralTiles.push({ x: tile.x, y: tile.y });
@@ -158,14 +268,29 @@ export class GameScene extends Phaser.Scene {
   }
 
   private detectAbsorptions(state: any): void {
+    // Cache names of non-absorbed players so we have the original name when they get absorbed
+    state.players.forEach((player: any, key: string) => {
+      const playerId = player.id || key;
+      if (!player.absorbed && player.teamName) {
+        this.playerNameCache.set(playerId, player.teamName);
+      }
+    });
+
     state.players.forEach((player: any, key: string) => {
       const playerId = player.id || key;
       if (player.absorbed && !this.absorbedPlayerIds.has(playerId)) {
         this.absorbedPlayerIds.add(playerId);
 
-        // Show notification
+        // Use just the noun (last word) from the cached original name
+        const originalName = this.playerNameCache.get(playerId) || playerId.slice(0, 8);
+        const originalNoun = originalName.split(" ").pop() || originalName;
+        const absorberName = player.teamId
+          ? (state.players.get(player.teamId)?.teamName || "someone")
+          : "someone";
+        const absorberNoun = absorberName.split(" ").pop() || absorberName;
+
         this.hudManager?.showNotification(
-          `${playerId.slice(0, 8)} has been absorbed!`
+          `${absorberNoun} scrapped ${originalNoun}`
         );
 
         // Collect tiles that were just absorbed (now neutral or transferred)
@@ -188,12 +313,126 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleTileClick(pointer: Phaser.Input.Pointer): void {
-    if (!this.gridRenderer) return;
+    if (!this.gridRenderer || !this.room) return;
 
     const gridPos = this.gridRenderer.pixelToGrid(pointer.x, pointer.y);
-    if (gridPos) {
+    if (!gridPos) return;
+
+    // Check tile state for gear handling
+    let tileHasGear = false;
+    let tileOwnerId = "";
+    const effectiveId = this.getEffectivePlayerId(this.room.state);
+    this.room.state.tiles.forEach((tile: any) => {
+      if (tile.x === gridPos.x && tile.y === gridPos.y) {
+        if (tile.hasGear && tile.gearScrap > 0) tileHasGear = true;
+        tileOwnerId = tile.ownerId;
+      }
+    });
+
+    if (tileOwnerId === "" || tileOwnerId !== effectiveId) {
+      // Unclaimed or enemy tile — try to claim it first
       this.networkManager.sendClaimTile(gridPos.x, gridPos.y);
     }
+
+    if (tileHasGear && (tileOwnerId === "" || tileOwnerId === effectiveId)) {
+      // Mine the gear if it's ours or unclaimed
+      this.networkManager.sendMineGear(gridPos.x, gridPos.y);
+    }
+  }
+
+  private handleTooltip(pointer: Phaser.Input.Pointer): void {
+    if (!this.gridRenderer || !this.room) {
+      this.tooltipText.setAlpha(0);
+      return;
+    }
+
+    const gridPos = this.gridRenderer.pixelToGrid(pointer.x, pointer.y);
+    if (!gridPos) {
+      this.tooltipText.setAlpha(0);
+      return;
+    }
+
+    let info = "";
+    this.room.state.tiles.forEach((tile: any) => {
+      if (tile.x === gridPos.x && tile.y === gridPos.y) {
+        if (tile.ownerId) {
+          const owner = this.room.state.players.get(tile.ownerId);
+          const ownerName = owner?.teamName || tile.ownerId.slice(0, 8);
+          info = `${ownerName}`;
+          if (tile.hasGear && tile.gearScrap > 0) {
+            info += ` | ⚙ ${tile.gearScrap}`;
+          }
+        } else if (tile.hasGear && tile.gearScrap > 0) {
+          info = `Unclaimed | ⚙ ${tile.gearScrap}`;
+        }
+      }
+    });
+
+    if (info) {
+      this.tooltipText.setText(info);
+      this.tooltipText.setPosition(pointer.x + 12, pointer.y - 20);
+      this.tooltipText.setAlpha(1);
+    } else {
+      this.tooltipText.setAlpha(0);
+    }
+  }
+
+  private showEndScreen(state: any): void {
+    // Find the winner (most tiles among non-absorbed players)
+    let winnerName = "";
+    let maxTiles = 0;
+    state.players.forEach((player: any) => {
+      if (!player.absorbed && player.tileCount > maxTiles) {
+        maxTiles = player.tileCount;
+        winnerName = player.teamName || "Unknown";
+      }
+    });
+
+    // Dark overlay
+    this.add
+      .rectangle(400, 300, 800, 600, 0x000000, 0.7)
+      .setDepth(200);
+
+    // Winner announcement
+    const winnerNoun = winnerName.split(" ").pop() || winnerName;
+    this.add
+      .text(400, 220, "GAME OVER", {
+        fontSize: "40px",
+        color: "#ffcc44",
+        fontFamily: "monospace",
+      })
+      .setOrigin(0.5)
+      .setDepth(201);
+
+    this.add
+      .text(400, 280, `${winnerNoun} wins with ${maxTiles} tiles!`, {
+        fontSize: "20px",
+        color: "#e0a030",
+        fontFamily: "monospace",
+      })
+      .setOrigin(0.5)
+      .setDepth(201);
+
+    // Back to menu button
+    const bg = this.add
+      .rectangle(400, 370, 220, 50, 0x3a6a2a, 0.9)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(201);
+
+    this.add
+      .text(400, 370, "BACK TO MENU", {
+        fontSize: "18px",
+        color: "#ffcc44",
+        fontFamily: "monospace",
+      })
+      .setOrigin(0.5)
+      .setDepth(202);
+
+    bg.on("pointerover", () => bg.setFillStyle(0x4a8a3a, 1));
+    bg.on("pointerout", () => bg.setFillStyle(0x3a6a2a, 0.9));
+    bg.on("pointerdown", () => {
+      this.scene.start("MenuScene");
+    });
   }
 
   private setupDirectionKeys(): void {

@@ -60,12 +60,12 @@ export class HUDManager {
 
     // --- Leaderboard (top-right) ---
     this.leaderboardBg = scene.add
-      .rectangle(GAME_WIDTH - 8, 8, 180, 160, DARK_BG, DARK_BG_ALPHA)
+      .rectangle(GAME_WIDTH - 8, 8, 260, 160, DARK_BG, DARK_BG_ALPHA)
       .setOrigin(1, 0)
       .setDepth(HUD_DEPTH);
 
     this.leaderboardTitle = scene.add
-      .text(GAME_WIDTH - 180, 14, "LEADERBOARD", {
+      .text(GAME_WIDTH - 260, 14, "LEADERBOARD", {
         fontFamily: FONT_FAMILY,
         fontSize: "12px",
         color: GOLD,
@@ -73,7 +73,7 @@ export class HUDManager {
       .setDepth(HUD_DEPTH + 1);
 
     this.leaderboardText = scene.add
-      .text(GAME_WIDTH - 180, 32, "", {
+      .text(GAME_WIDTH - 260, 32, "", {
         fontFamily: FONT_FAMILY,
         fontSize: "11px",
         color: AMBER,
@@ -173,16 +173,21 @@ export class HUDManager {
     attack: number,
     defense: number,
     tileCount: number,
-    incomeRate: number
+    incomeRate: number,
+    timeRemaining?: number
   ): void {
+    const timeStr = timeRemaining !== undefined
+      ? `${Math.floor(timeRemaining / 60)}:${String(timeRemaining % 60).padStart(2, "0")}`
+      : "";
     this.statsText.setText(
       [
+        timeStr ? `Time:    ${timeStr}` : "",
         `Scrap:   ${scrap}`,
         `Attack:  ${attack}`,
         `Defense: ${defense}`,
         `Tiles:   ${tileCount}`,
         `Income:  +${incomeRate}/s`,
-      ].join("\n")
+      ].filter(Boolean).join("\n")
     );
   }
 
@@ -192,13 +197,13 @@ export class HUDManager {
   updateLeaderboard(players: { id: string; tileCount: number }[]): void {
     const sorted = [...players].sort((a, b) => b.tileCount - a.tileCount);
     const lines = sorted.map(
-      (p, i) => `${i + 1}. ${p.id.slice(0, 8)} — ${p.tileCount}`
+      (p, i) => `${i + 1}. ${p.id} — ${p.tileCount}`
     );
     this.leaderboardText.setText(lines.join("\n"));
 
     // Resize background to fit content
     const textHeight = this.leaderboardText.height;
-    this.leaderboardBg.setSize(180, textHeight + 30);
+    this.leaderboardBg.setSize(260, textHeight + 30);
   }
 
   /**

@@ -1,0 +1,42 @@
+
+Overview
+Key participants Steph Hicks, Pete Wanamaker, and Nathan Engert convene to discuss the development and testing of a new HDML-based game. Steph leads the development effort, working daily with AI assistance to implement the tech stack and game design. Pete, unfamiliar with game testing, expresses concerns about his role, while Nathan provides insights into balancing mechanical testing with gameplay evaluation.
+The team deliberates on game duration and win conditions, aiming for a concise, engaging experience around five minutes. They explore mechanics for defense and attack to prevent stalemates and ensure dynamic play. Project management tools like Trello and Slack are proposed to coordinate tasks and communication effectively.
+Overall, the meeting establishes a clear development plan, acknowledges testing challenges, and sets a foundation for collaborative progress with commitments to document and share ideas through Slack and GitHub.
+
+Detailed Summary
+Game Development Progress
+The team discusses their ongoing work on a game playable in HDML, focusing on the tech stack and development schedule. Steph plans to work daily during lunch and evenings, using AI assistance to guide development. The tech stack includes Colossus Bite and TypeScript, with Steph and Nathan collaborating on design and implementation.
+	•	Steph plans to work on the game daily during lunch and evenings using AI assistance.
+	•	Steph set up the GitHub repository and shared the tech stack involving Colossus Bite and TypeScript.
+	•	Steph and Nathan discussed the game design document and potential iterations for development.
+Testing Challenges and Strategies
+Pete expresses uncertainty about how to test the game, highlighting the difference between testing a game and a typical web app. Nathan explains that testing involves both mechanical correctness and assessing gameplay fun and engagement. The team considers involving others for testing and discusses documentation and tracking testing efforts.
+	•	Pete is unsure how to test the game and worries about letting the team down.
+	•	Nathan distinguishes between mechanical testing and evaluating game fun and engagement.
+	•	Steph suggests possibly involving others for testing once a playable version is available.
+	•	Pete plans to create test documentation and organize testing efforts, possibly using GitHub.
+Game Duration and Win Conditions
+The team debates the intended game length and how it affects design decisions. Nathan emphasizes balancing game mechanics to fit within a target duration, such as five minutes. They discuss win conditions, including total domination or saturation of the playfield, and how defense and attack mechanics influence stalemates or game endings.
+	•	Nathan highlights the importance of scaling game mechanics to fit a five-minute playtime.
+	•	Steph explains the current win condition is when the playfield is fully assumed and the player with the most aisles wins.
+	•	Nathan proposes that total domination by one player could also end the game before full saturation.
+	•	The team discusses preventing stalemates where players only defend and do not attack.
+Mechanics of Defense and Attack
+Nathan outlines a conceptual model where defense is based on the number of adjacent squares a player controls, and attack strength must exceed this to consume territory. This model aims to prevent stalemates and ensure dynamic gameplay. Steph acknowledges the complexity and plans to review the discussion further.
+	•	Nathan describes defense as the count of adjacent squares a player controls.
+	•	Attack must exceed defense to consume an opponent's territory.
+	•	This mechanic aims to avoid stalemates and encourage active conflict.
+	•	Steph plans to review the detailed mechanics discussed.
+Project Management and Communication Tools
+The team considers tools for organizing development and testing tasks. Steph mentions setting up a Trello board, and Pete expresses interest in creating test documentation folders. Slack is identified as the primary channel for ongoing communication and sharing ideas or requirements.
+	•	Steph suggests using Trello for task management.
+	•	Pete plans to organize test documentation and tracking.
+	•	Slack is the main communication channel for sharing updates and ideas.
+	•	Nathan agrees to contribute design and mechanics ideas via Slack.
+
+    	•	Steph will post and maintain key design and mechanic discussions in the Slack channel for team visibility and collaboration.
+	•	Steph will update the game design document to correct the game title from 'scrap machine' to the current game name.
+	•	Steph will continue working on the game daily during lunch breaks and some evenings, focusing on AI integration and tech stack development.
+	•	Pete will start organizing test documentation by creating an end-to-end (E2E) folder and begin documenting his testing efforts.
+	•	Nathan will review the game design documents and contribute to fleshing out game mechanics, especially balancing game duration and upgrade scaling.

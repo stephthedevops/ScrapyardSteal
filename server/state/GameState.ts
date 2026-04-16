@@ -4,16 +4,28 @@ export class Tile extends Schema {
   @type("number") x: number = 0;
   @type("number") y: number = 0;
   @type("string") ownerId: string = "";
+  @type("boolean") isSpawn: boolean = false;
+  @type("boolean") hasGear: boolean = false;
+  @type("number") gearScrap: number = 0;
 }
 
 export class Player extends Schema {
   @type("string") id: string = "";
+  @type("string") nameAdj: string = "";
+  @type("string") nameNoun: string = "";
+  @type("number") color: number = -1;
+  @type("string") teamId: string = "";
+  @type("string") teamName: string = "";
+  @type("boolean") isTeamLead: boolean = true;
+  @type("boolean") isHost: boolean = false;
   @type("number") resources: number = 0;
   @type("number") attack: number = 1;
   @type("number") defense: number = 1;
   @type("number") tileCount: number = 1;
   @type("boolean") absorbed: boolean = false;
   @type("string") direction: string = "";
+  @type("number") spawnX: number = -1;
+  @type("number") spawnY: number = -1;
 }
 
 export class GameState extends Schema {
@@ -22,4 +34,7 @@ export class GameState extends Schema {
   @type("number") gridWidth: number = 0;
   @type("number") gridHeight: number = 0;
   @type("string") phase: string = "waiting";
+  @type("string") hostId: string = "";
+  @type("string") shortCode: string = "";
+  @type("number") timeRemaining: number = 300;
 }
