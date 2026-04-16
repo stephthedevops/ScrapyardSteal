@@ -148,6 +148,21 @@ npm run build
 | Open Source by GitHub | ✅ Eligible |
 | Deploy to Wavedash | 🔲 Pending |
 
+## 📋 Issue Tracking
+
+We use a lightweight markdown-based issue tracking system in [`issue_tracking/`](issue_tracking/).
+
+| File | What it tracks |
+|------|---------------|
+| [Core Priorities](issue_tracking/core-priorities.md) | Must-do before jam submission |
+| [Known Bugs](issue_tracking/known-bugs.md) | Confirmed bugs |
+| [Nice-to-Haves](issue_tracking/nice-to-haves.md) | Polish items |
+| [Backlog](issue_tracking/backlog.md) | Post-jam / future features |
+| [Completed](issue_tracking/completed.md) | Done and verified |
+| [Rejected](issue_tracking/rejected.md) | Decided against |
+
+See [`issue_tracking/00_README.md`](issue_tracking/00_README.md) for how to add items, tag for triage, and assign work.
+
 ## 📄 License
 
 MIT
