@@ -1,0 +1,37 @@
+# Tasks — Name Generator Fix
+
+- [x] 1. Fix the ANIMALS array in `src/utils/nameGenerator.ts`
+  - [x] 1.1 Remove the corrupted unquoted entries (everything after "Parrot" in the current array)
+  - [x] 1.2 Add curated animals as properly quoted string literals to reach exactly 230 total entries
+  - [x] 1.3 Ensure no duplicate entries exist in the final ANIMALS array
+  - [x] 1.4 Verify all original 35 animals are retained: Badger, Falcon, Otter, Moose, Cobra, Raven, Bison, Gecko, Panda, Shark, Viper, Crane, Hyena, Lemur, Newt, Quail, Sloth, Tiger, Whale, Yak, Alpaca, Bobcat, Coyote, Dingo, Eagle, Ferret, Goose, Hawk, Iguana, Jackal, Koala, Llama, Marten, Osprey, Parrot
+  - [x] 1.5 Verify the ANIMALS array has exactly 230 entries
+  - [x] 1.6 Verify the module compiles without TypeScript errors
+- [x] 2. Expand the ADJECTIVES array in `src/utils/nameGenerator.ts` to 200 entries
+  - [x] 2.1 Add curated theme-appropriate adjectives as properly quoted string literals (scrapyard/robot/mechanical theme) to reach exactly 200 total entries
+  - [x] 2.2 Ensure no duplicate entries exist in the final ADJECTIVES array
+  - [x] 2.3 Verify all original 35 adjectives are retained: Rusty, Turbo, Chrome, Steamy, Clunky, Sparky, Greasy, Riveted, Welded, Cranky, Gritty, Bolted, Dented, Oiled, Wired, Charged, Plated, Forged, Tempered, Galvanized, Pneumatic, Hydraulic, Magnetic, Atomic, Diesel, Overclocked, Hardened, Corroded, Polished, Hammered, Torqued, Pressurized, Motorized, Armored, Scrappy
+  - [x] 2.4 Verify the ADJECTIVES array has exactly 200 entries
+  - [x] 2.5 Verify the module compiles without TypeScript errors
+- [x] 3. Write unit tests in `tests/unit/nameGenerator.test.ts`
+  - [x] 3.1 Test that every ANIMALS entry is a non-empty string (no undefined, null, or empty values)
+  - [x] 3.2 Test that ANIMALS contains no duplicate entries
+  - [x] 3.3 Test that all animals from the curated list are present in the array
+  - [x] 3.4 Test that all 35 original animals are present in the array
+  - [x] 3.5 Test that ANIMALS has exactly 230 entries
+  - [x] 3.6 Test that every ADJECTIVES entry is a non-empty string (no undefined, null, or empty values)
+  - [x] 3.7 Test that ADJECTIVES contains no duplicate entries
+  - [x] 3.8 Test that all 35 original adjectives are present in the array
+  - [x] 3.9 Test that ADJECTIVES has exactly 200 entries
+  - [x] 3.10 Test that `generateName()` returns `{ adj, noun }` with noun ending in "bot"
+  - [x] 3.11 Test that `formatName(adj, noun)` returns the correct "Adjective Nounbot" format
+- [x] 4. Write property-based tests in `tests/property/nameGenerator.prop.ts`
+  - [x] 4.1 [PBT Exploration] Property 1: All ANIMALS entries are valid strings — verify every entry is typeof string and non-empty (validates fix for Requirement 2.1)
+  - [x] 4.2 [PBT Exploration] Property 2: No duplicate animals — verify ANIMALS array length equals deduplicated Set size (validates fix for Requirement 2.2)
+  - [x] 4.3 [PBT Exploration] Property 3: ANIMALS array has exactly 230 entries (validates fix for Requirement 2.4)
+  - [x] 4.4 [PBT Exploration] Property 4: All ADJECTIVES entries are valid strings — verify every entry is typeof string and non-empty (validates fix for Requirement 2.5)
+  - [x] 4.5 [PBT Exploration] Property 5: No duplicate adjectives — verify ADJECTIVES array length equals deduplicated Set size (validates fix for Requirement 2.6)
+  - [x] 4.6 [PBT Exploration] Property 6: ADJECTIVES array has exactly 200 entries (validates fix for Requirement 2.5)
+  - [x] 4.7 [PBT Preservation] Property 7: generateName output shape — for random takenAdjs/takenNouns subsets, generateName returns { adj: string, noun: string } with noun ending in "bot" (validates Requirement 3.1)
+  - [x] 4.8 [PBT Preservation] Property 8: generateName avoids taken names — for random takenAdjs/takenNouns subsets where alternatives exist, returned values are not in the taken sets (validates Requirement 3.2)
+  - [x] 4.9 [PBT Preservation] Property 9: formatName output format — for random adj/noun strings, formatName returns them joined with a space (validates Requirement 3.3)

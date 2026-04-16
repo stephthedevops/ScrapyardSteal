@@ -26,6 +26,20 @@ const httpServer = createServer(
       return;
     }
 
+    // Find a public room: GET /public
+    if (req.url?.startsWith("/public")) {
+      const firstPublicCode = GameRoom.publicRooms.values().next().value;
+      if (firstPublicCode) {
+        const roomId = GameRoom.shortCodeMap.get(firstPublicCode);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ roomId, code: firstPublicCode }));
+      } else {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No public rooms available" }));
+      }
+      return;
+    }
+
     res.writeHead(200);
     res.end("Scrapyard Steal server");
   }

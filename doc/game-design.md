@@ -1,100 +1,103 @@
 # Scrapyard Steal — Game Design Document
 
+<p align="center">
+  <img src="../images/scrapyardsteal.png" alt="Scrapyard Steal" width="50%"/> <br />
+</p>
+
 ## Overview
 
-Scrapyard Steal is a multiplayer clicker/strategy game built for the Gamedev.js Jam 2026 (theme: "Machines"). Players share a "petri dish" world with 10–20 participants, each controlling a small factory or machine in a scrapyard setting. The goal is to grow your machine by collecting scrap tiles, expanding territory, and absorbing opponents — not eliminating them.
+Scrapyard Steal is a multiplayer clicker/strategy game built for the Gamedev.js Jam 2026 (theme: "Machines"). Players share a scrapyard world, each controlling a factory-machine. The goal is to grow your machine by claiming scrap tiles, expanding territory, mining gears, and absorbing opponents into your team.
 
 ## Core Concept
 
-Each player starts with a small organism-like factory and a few buttons: grow, attack, and defend. Players compete on a shared tile grid, expanding territory through strategic clicking. When you overcome an opponent, they aren't eliminated — instead, the defeated player's territory is absorbed and assists the victor in further expansion.
+Each player starts with a single tile and a factory (🏭). Players compete on a shared tile grid, expanding territory through clicking. When you overcome an opponent through border conflict, they join your team — their adjective stacks onto your team name, and they can help you click to earn scrap. The game ends after 5 minutes; the team with the most tiles wins.
 
 ## Game Mechanics
 
 ### Territory Expansion
-- The map is a shared grid of tiles. Each player starts with a small cluster.
-- Players click to grow, claiming neutral tiles adjacent to their territory.
-- Claiming tiles increases territory size and resource income, fueling further expansion and upgrades.
+- The map is a shared grid of tiles. Each player starts with 1 tile, placed equidistant around a circle.
+- Players click neutral tiles adjacent to their territory to claim them.
+- Claiming tiles costs scrap. Cost scales with tile count: `floor(10 × (1 + 0.02 × tileCount))`.
+- More tiles = more income (1 scrap per tile per second).
 
-### Border Conflict & Stalemates
-- When two players share a border, conflict is resolved by comparing attack strength and tile control along the shared edge.
-- Players with similar attack and defense values may reach a stalemate, sharing a border until one gains an advantage.
-- Tile takeover is gradual, influenced by border length and relative attack strength.
-- Absorbed tiles become part of the attacker's territory.
+### Border Conflict
+- Borders between opposing players are evaluated every second.
+- Attack pressure = `attack × shared border tiles`.
+- Defense resistance = `defense × shared border tiles`.
+- If pressure > resistance, one border tile transfers to the attacker.
+- Equal pressure = stalemate (no transfer).
 
-### Steering Growth
-- Players can steer their growth direction, choosing to expand toward specific opponents or neutral territory.
-- This adds a layer of strategy beyond raw stat upgrades — positioning and timing matter.
+### Team Absorption
+- When a player loses all tiles via border conflict, they are absorbed.
+- The absorbed player joins the absorber's team.
+- The absorbed player's name adjective is prepended to the team name (e.g., "Turbo Hydraulic Otterbot").
+- Team members can click to claim tiles and mine gears for the team leader.
+- Only the team leader can spend scrap on upgrades.
+- The absorber receives 25% of the absorbed player's scrap as a bonus.
 
-### Growth Strategy
-- Players balance three priorities:
-  - **Growth speed** — how fast you claim neutral tiles
-  - **Defense** — how resistant your borders are to absorption
-  - **Aggression** — how effectively you push into opponent territory
-- Upgrade costs increase as your machine grows, forcing strategic choices about when to expand vs. fortify.
+### Gear Mining
+- Gear tiles (⚙) are randomly placed on the grid at game start (3 × player count).
+- Each gear has 50 scrap.
+- Click a gear tile to extract scrap equal to your team's attack stat.
+- Gears can be mined on unclaimed tiles or tiles you own.
+- Gears disappear when depleted.
 
-### Resource Management
-- Resource income is proportional to the number of tiles controlled.
-- Growth increases income, which fuels further expansion and upgrades.
-- Resources are spent on:
-  - Claiming new tiles
-  - Upgrading attack strength
-  - Upgrading defense
-- The initial version uses a single resource type. Multiple resource types may be added later.
+### Upgrades
+- Attack upgrade cost: `50 × current attack`.
+- Defense upgrade cost: `50 × current defense`.
+- Only the team leader can purchase upgrades.
 
-### Static / Stationary Model (V1)
-- The first version features stationary players — machines expand outward from their position without movement.
-- This keeps the initial build simple and playable.
-- Movement mechanics may be added in a later iteration to enrich gameplay.
+### Growth Direction
+- Arrow keys set a preferred expansion direction (north/south/east/west).
+- Claimable tiles are filtered by direction relative to territory centroid.
+- Press the same arrow again or Escape to clear.
 
-### Future Features (Post-V1)
-- **Attack types** — Different attack types with rock-paper-scissors style strengths and weaknesses.
-- **Multiple resources** — Additional resource types to add economic depth.
-- **Movement** — Allowing machines to physically move across the grid.
-- These are explicitly deferred to keep V1 scoped for the jam timeline.
+### Stationary Model
+- Machines expand outward from their position without movement.
+- All expansion is through tile claiming, not unit movement.
+
+## Player Identity
+
+- Each player has a random name: adjective + noun (e.g., "Turbo Falconbot").
+- Adjectives are machine-themed (Rusty, Turbo, Chrome, Hydraulic, etc.).
+- Nouns are animals with "bot" suffix (Falconbot, Otterbot, Sharkbot, etc.).
+- Players can reroll their name in the lobby (♻ button).
+- Names are unique within a lobby (no duplicate adjectives or nouns).
+
+## Color System
+
+- 10 metal-themed colors: Copper, Corroded Copper, Gold, Tarnished Silver, Titanium, Cobalt, Bismuth, Rusty Iron, Chromium, Tungsten.
+- Players choose a color in the lobby. Taken colors show a red ✕.
+- After absorption, your screen still renders your team in your original chosen color.
+
+## Lobby & Matchmaking
+
+- Host creates a game and receives a 5-character room code.
+- Other players join by entering the code.
+- Host clicks START to begin the game.
+- Multiple simultaneous game rooms are supported.
+
+## Win Condition
+
+- 5-minute timer. Most tiles when time expires wins.
 
 ## Theme Integration
 
-The game is set in a scrapyard. Players control tank-like machines with magnets that collect scrap to grow. Tiles represent scrap that machines integrate into their body. Absorbing an opponent means salvaging their parts. The visual language should lean into industrial/mechanical aesthetics — rust, magnets, welded metal, sparks.
+<img src="../images/bunnybot.png" alt="Bunnybot" width="75%"/><br />
+The game is set in a scrapyard. Players control factory-machines that collect scrap to grow. Tiles represent scrap integrated into the machine's body. Absorbing an opponent means salvaging their parts. Visual language: rust tones, metallic colors, gears, factory icons.
 
 ## Technical Stack
 
 | Layer | Tech |
 |-------|------|
-| Game engine (client) | Phaser |
-| Multiplayer framework | Colyseus |
+| Game engine | Phaser 3 |
+| Multiplayer | Colyseus |
 | Server runtime | Node.js |
 | Language | TypeScript |
 | Build tool | Vite |
-| Hosting (client) | itch.io |
-| Hosting (server) | TBD (Fly.io / Railway) |
+| Testing | Vitest + fast-check |
+| Client hosting | itch.io |
+| Server hosting | Colyseus Cloud (us-ord-ef0ec457.colyseus.cloud) |
 
 ### Repository
-## Open Questions
-
-- How to handle the learning curve for Phaser/Colyseus within the jam window?
-- Movement mechanics: defer entirely or attempt a basic version during the jam?
-- How many simultaneous players can the design support before performance degrades?
-- Server hosting: which platform for the Colyseus backend?DX.
-
-### Target Platform
-- Web browser (HTML5) — required for Gamedev.js Jam submission.
-
-### Challenge Tracks to Enter
-- **Build it with Phaser** — Phaser Editor Pro subscriptions + Vampire Survivors bundles.
-- **Open Source by GitHub** — Repo is already public. Prizes: GitHub Copilot Pro licenses.
-- **Deploy to Wavedash** — Cash prizes ($1000 / $750 / $500 / $250).
-
-## Open Questions
-
-- Which engine/framework to commit to?
-- How to handle the learning curve for unfamiliar technologies within the jam window?
-- Movement mechanics: defer entirely or attempt a basic version during the jam?
-- How many simultaneous players can the design support before performance degrades?
-
-## Next Steps
-
-1. Share this document with the team for feedback
-2. Lock in engine choice and set up project scaffold
-3. Prototype the tile grid, click-to-grow mechanic, and basic resource loop
-4. Implement border conflict and stalemate logic
-5. Playtest and iterate on balance (growth vs. defense vs. aggression)
+- https://github.com/stephthedevops/ScrapyardSteal

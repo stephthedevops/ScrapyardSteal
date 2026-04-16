@@ -2,4 +2,5 @@
 
 Deferred features and polish items. Not required for jam submission but would improve the game.
 
-(All items either completed and moved to completed.md, or moved to backlog.md)
+- [ ] Chat in lobby — Simple text chat while waiting for game to start
+- [ ] Particle effects — Sparks on conflict, smoke on absorption, sparks on gear mine

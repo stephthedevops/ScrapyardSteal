@@ -191,19 +191,34 @@ export class GameScene extends Phaser.Scene {
     const effectiveId = this.getEffectivePlayerId(state);
     const effectivePlayer = state.players.get(effectiveId);
     if (effectivePlayer) {
+      // Count factories owned by team leader
+      let factoryCount = 0;
+      state.tiles.forEach((tile: any) => {
+        if (tile.isSpawn && tile.ownerId === effectiveId) factoryCount++;
+      });
+
       this.hudManager.updateStats(
         effectivePlayer.resources,
         effectivePlayer.attack,
         effectivePlayer.defense,
         effectivePlayer.tileCount,
-        effectivePlayer.tileCount,
-        state.timeRemaining
+        factoryCount,
+        state.players.get(this.localSessionId)?.isTeamLead
       );
 
       // Calculate upgrade costs
       const attackCost = 50 * effectivePlayer.attack;
       const defenseCost = 50 * effectivePlayer.defense;
       this.hudManager.updateUpgradeCosts(attackCost, defenseCost);
+      this.hudManager.updateTeamName(effectivePlayer.teamName || "");
+
+      // Update player identity below grid
+      const localP = state.players.get(this.localSessionId);
+      this.hudManager.updateIdentity(
+        localP?.isTeamLead ?? true,
+        effectivePlayer.teamName || "",
+        localP?.nameAdj || ""
+      );
     }
 
     // Build leaderboard from non-absorbed players
@@ -213,7 +228,7 @@ export class GameScene extends Phaser.Scene {
         leaderboardData.push({ id: player.teamName || `${player.nameAdj} ${player.nameNoun}`.trim() || key.slice(0, 10), tileCount: player.tileCount });
       }
     });
-    this.hudManager.updateLeaderboard(leaderboardData);
+    this.hudManager.updateLeaderboard(leaderboardData, state.timeRemaining);
 
     // Detect new absorptions and show notifications / effects
     this.detectAbsorptions(state);
@@ -370,7 +385,15 @@ export class GameScene extends Phaser.Scene {
 
     if (info) {
       this.tooltipText.setText(info);
-      this.tooltipText.setPosition(pointer.x + 12, pointer.y - 20);
+      // Clamp tooltip to game bounds
+      let tx = pointer.x + 12;
+      let ty = pointer.y - 20;
+      const tw = this.tooltipText.width;
+      const th = this.tooltipText.height;
+      if (tx + tw > 800) tx = pointer.x - tw - 8;
+      if (ty < 0) ty = pointer.y + 12;
+      if (ty + th > 600) ty = 600 - th;
+      this.tooltipText.setPosition(tx, ty);
       this.tooltipText.setAlpha(1);
     } else {
       this.tooltipText.setAlpha(0);

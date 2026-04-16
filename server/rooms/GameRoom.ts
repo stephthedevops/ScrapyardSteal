@@ -17,9 +17,12 @@ export class GameRoom extends Room<GameState> {
   maxClients = 20;
   private gameLoopInterval: ReturnType<typeof this.clock.setInterval> | null = null;
   private hostId: string = "";
+  private soloTeamTicks: number = 0;
 
   /** Global map of shortCode → roomId for lookups */
   static shortCodeMap = new Map<string, string>();
+  /** Set of shortCodes that are public and waiting */
+  static publicRooms = new Set<string>();
 
   private static generateShortCode(): string {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 to avoid confusion
@@ -136,8 +139,16 @@ export class GameRoom extends Room<GameState> {
       // Only mine if tile is unclaimed or owned by the team leader
       if (tile.ownerId !== "" && tile.ownerId !== leader.id) return;
 
-      // Extract scrap equal to leader's attack stat, capped by remaining gearScrap
-      const extracted = Math.min(leader.attack, tile.gearScrap);
+      // Count factories (spawn tiles) owned by the team leader
+      let factoryCount = 0;
+      this.state.tiles.forEach((t) => {
+        if (t.isSpawn && t.ownerId === leader.id) factoryCount++;
+      });
+      const multiplier = Math.max(1, factoryCount);
+
+      // Extract scrap = attack × factory multiplier, capped by remaining gearScrap
+      const baseExtract = leader.attack * multiplier;
+      const extracted = Math.min(baseExtract, tile.gearScrap);
       tile.gearScrap -= extracted;
       leader.resources += extracted;
 
@@ -150,19 +161,73 @@ export class GameRoom extends Room<GameState> {
     // Host starts the game
     this.onMessage("startGame", (client) => {
       if (this.state.phase !== "waiting") return;
-      if (client.sessionId !== this.hostId) return; // only host can start
+      if (client.sessionId !== this.hostId) return;
       if (this.state.players.size < 1) return;
+
+      // Validate all players have unique names
+      const adjs = new Set<string>();
+      const nouns = new Set<string>();
+      let hasDuplicate = false;
+      let hasEmpty = false;
+
+      this.state.players.forEach((p) => {
+        if (!p.nameAdj || !p.nameNoun) { hasEmpty = true; return; }
+        if (adjs.has(p.nameAdj) || nouns.has(p.nameNoun)) { hasDuplicate = true; }
+        adjs.add(p.nameAdj);
+        nouns.add(p.nameNoun);
+      });
+
+      if (hasEmpty) {
+        client.send("startError", { message: "All players must have a name" });
+        return;
+      }
+      if (hasDuplicate) {
+        client.send("startError", { message: "Duplicate names detected — players must reroll" });
+        return;
+      }
+
       this.startGame();
     });
 
-    // Player sets their name (adj + noun)
+    // Player sets their name (adj + noun) — reject if adj or noun already taken
     this.onMessage("setName", (client, data: { adj: string; noun: string }) => {
       if (this.state.phase !== "waiting") return;
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
-      player.nameAdj = (data.adj || "").slice(0, 16);
-      player.nameNoun = (data.noun || "").slice(0, 16);
-      player.teamName = `${player.nameAdj} ${player.nameNoun}`;
+
+      const adj = (data.adj || "").slice(0, 16);
+      const noun = (data.noun || "").slice(0, 16);
+
+      // Check for duplicates among other players
+      let adjTaken = false;
+      let nounTaken = false;
+      this.state.players.forEach((p, key) => {
+        if (key === client.sessionId) return;
+        if (p.nameAdj === adj) adjTaken = true;
+        if (p.nameNoun === noun) nounTaken = true;
+      });
+
+      if (adjTaken || nounTaken) {
+        // Notify client the name was rejected
+        client.send("nameRejected", { adj, noun, adjTaken, nounTaken });
+        return;
+      }
+
+      player.nameAdj = adj;
+      player.nameNoun = noun;
+      player.teamName = `${adj} ${noun}`;
+    });
+
+    // Host toggles public/private
+    this.onMessage("togglePublic", (client) => {
+      if (this.state.phase !== "waiting") return;
+      if (client.sessionId !== this.hostId) return;
+      this.state.isPublic = !this.state.isPublic;
+      if (this.state.isPublic) {
+        GameRoom.publicRooms.add(this.state.shortCode);
+      } else {
+        GameRoom.publicRooms.delete(this.state.shortCode);
+      }
     });
 
     // Player selects a color
@@ -246,6 +311,7 @@ export class GameRoom extends Room<GameState> {
       this.gameLoopInterval = null;
     }
     GameRoom.shortCodeMap.delete(this.state.shortCode);
+    GameRoom.publicRooms.delete(this.state.shortCode);
     console.log("GameRoom disposed");
   }
 
@@ -299,6 +365,7 @@ export class GameRoom extends Room<GameState> {
     this.state.gridWidth = gridSize;
     this.state.gridHeight = gridSize;
     this.state.phase = "active";
+    GameRoom.publicRooms.delete(this.state.shortCode);
 
     // Start the 1-second game loop
     this.gameLoopInterval = this.clock.setInterval(() => this.gameTick(), 1000);
@@ -338,14 +405,7 @@ export class GameRoom extends Room<GameState> {
       tileGrid[tile.y][tile.x] = tile.ownerId;
     }
 
-    // 1. Award resource income: each non-absorbed player gains scrap = tileCount
-    this.state.players.forEach((player) => {
-      if (!player.absorbed) {
-        player.resources += player.tileCount;
-      }
-    });
-
-    // 2. Evaluate all borders
+    // 1. Evaluate all borders
     const tilesArray: Tile[] = [];
     this.state.tiles.forEach((tile) => tilesArray.push(tile));
     const borders = findBorders(tilesArray, gridWidth, gridHeight);
@@ -399,6 +459,28 @@ export class GameRoom extends Room<GameState> {
           }
         }
       }
+    }
+
+    // 6. Check if only one team remains — end game after 2 consecutive seconds
+    const activeTeams = new Set<string>();
+    this.state.players.forEach((player) => {
+      if (!player.absorbed) {
+        activeTeams.add(player.id);
+      }
+    });
+
+    if (activeTeams.size <= 1 && this.state.players.size > 1) {
+      this.soloTeamTicks++;
+      if (this.soloTeamTicks >= 2) {
+        this.state.phase = "ended";
+        if (this.gameLoopInterval) {
+          this.gameLoopInterval.clear();
+          this.gameLoopInterval = null;
+        }
+        console.log("Game ended — only one team remaining");
+      }
+    } else {
+      this.soloTeamTicks = 0;
     }
   }
 }

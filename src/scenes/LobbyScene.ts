@@ -20,6 +20,8 @@ const AMBER = "#e0a030";
 const GOLD = "#ffcc44";
 const FONT = "monospace";
 const HUD_DEPTH = 100;
+const BUTTON_BG = 0x3a3a2a;
+const BUTTON_HOVER = 0x5a5a3a;
 
 export class LobbyScene extends Phaser.Scene {
   private networkManager!: NetworkManager;
@@ -46,6 +48,10 @@ export class LobbyScene extends Phaser.Scene {
         fontFamily: FONT,
       })
       .setOrigin(0.5);
+
+    // Easter egg tagline: "Machines built to smash, weld, absorb, and boom."
+    // Secret letters: M(acawbot), B(eebot), T(igerbot), S(eahorsebot), W(olfbot), A(xolotebot), B(unnybot), M(ambabot)
+    this.createEasterEggTagline();
 
     this.statusText = this.add
       .text(400, 90, "Connecting...", {
@@ -74,7 +80,8 @@ export class LobbyScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => {
-        const newName = generateName();
+        const taken = this.getTakenNames();
+        const newName = generateName(taken.adjs, taken.nouns);
         this.networkManager.sendSetName(newName.adj, newName.noun);
       })
       .on("pointerover", function (this: Phaser.GameObjects.Text) {
@@ -145,10 +152,14 @@ export class LobbyScene extends Phaser.Scene {
 
     this.networkManager = new NetworkManager();
 
-    const connectPromise =
-      mode === "join" && roomId
-        ? this.networkManager.joinByShortCode(roomId)
-        : this.networkManager.createGame();
+    let connectPromise: Promise<any>;
+    if (mode === "join" && roomId) {
+      connectPromise = this.networkManager.joinByShortCode(roomId);
+    } else if (mode === "quickplay") {
+      connectPromise = this.networkManager.joinPublicRoom();
+    } else {
+      connectPromise = this.networkManager.createGame();
+    }
 
     connectPromise
       .then((room) => {
@@ -156,7 +167,7 @@ export class LobbyScene extends Phaser.Scene {
         this.localSessionId = room.sessionId;
         this.statusText.setText("Waiting for host to start...");
 
-        // Generate and send initial random name
+        // Generate and send initial random name (no taken names yet since we just joined)
         const initialName = generateName();
         this.networkManager.sendSetName(initialName.adj, initialName.noun);
 
@@ -185,6 +196,85 @@ export class LobbyScene extends Phaser.Scene {
           this.scene.start("MenuScene");
         });
       });
+  }
+
+  private createEasterEggTagline(): void {
+    // Tagline: "Machines built to smash, weld, absorb, and boom."
+    // Secret letters map to bots (first letter of each word with a secret)
+    const SECRET_BOTS: Record<number, { adj: string; noun: string; image: string }> = {
+      0:  { adj: "Prismatic", noun: "Macawbot", image: "images/macawbot-stats.png" },
+      9:  { adj: "Phantom", noun: "Bunnybot", image: "images/bunnybot-stats.png" },
+      15: { adj: "Apex", noun: "Tigerbot", image: "images/tigerbot-stats.png" },
+      18: { adj: "Abyssal", noun: "Seahorsebot", image: "images/seahorsebot-stats.png" },
+      25: { adj: "Feral", noun: "Wolfbot", image: "images/wolfbot-stats.png" },
+      31: { adj: "Mythic", noun: "Axolotebot", image: "images/axolotebot-stats.png" },
+      42: { adj: "Venomous", noun: "Beebot", image: "images/beebot-stats.png" },
+      46: { adj: "Lethal", noun: "Mambabot", image: "images/mambabot-stats.png" },
+    };
+
+    const tagline = "Machines built to smash, weld, absorb, and kaboom.";
+    const y = 68;
+    const fontSize = 11;
+    const startX = 400 - (tagline.length * fontSize * 0.3);
+
+    // Render each character, making secret ones interactive
+    for (let i = 0; i < tagline.length; i++) {
+      const ch = tagline[i];
+      const x = startX + i * (fontSize * 0.6);
+      const isSecret = SECRET_BOTS[i] !== undefined;
+
+      const charText = this.add
+        .text(x, y, ch, {
+          fontSize: `${fontSize}px`,
+          color: AMBER,
+          fontFamily: FONT,
+        })
+        .setDepth(50);
+
+      if (isSecret) {
+        const bot = SECRET_BOTS[i];
+        charText.setInteractive({ useHandCursor: true });
+        charText.on("pointerover", () => charText.setColor("#c8b060"));
+        charText.on("pointerout", () => charText.setColor(AMBER));
+        charText.on("pointerdown", () => {
+          // Check if this elite bot noun is already taken in the lobby
+          if (this.room?.state) {
+            let taken = false;
+            this.room.state.players.forEach((p: any, key: string) => {
+              if (key !== this.localSessionId && p.nameNoun === bot.noun) {
+                taken = true;
+              }
+            });
+            if (taken) return;
+          }
+
+          // Set the player's name to the secret bot with unique elite adjective
+          this.networkManager.sendSetName(bot.adj, bot.noun);
+
+          // Show the bot image on the right side
+          const existing = this.children.getByName("secretBotImage");
+          if (existing) existing.destroy();
+
+          // Load and display the image
+          const key = `secret_${bot.noun}`;
+          if (!this.textures.exists(key)) {
+            this.load.image(key, bot.image);
+            this.load.once("complete", () => {
+              this.add.image(700, 200, key)
+                .setDisplaySize(200, 200)
+                .setDepth(150)
+                .setName("secretBotImage");
+            });
+            this.load.start();
+          } else {
+            this.add.image(700, 200, key)
+              .setDisplaySize(200, 200)
+              .setDepth(50)
+              .setName("secretBotImage");
+          }
+        });
+      }
+    }
   }
 
   private createColorPicker(): void {
@@ -238,7 +328,36 @@ export class LobbyScene extends Phaser.Scene {
 
   private transitioned = false;
 
+  /** Get taken adjectives and nouns from other players in the room */
+  private getTakenNames(): { adjs: Set<string>; nouns: Set<string> } {
+    const adjs = new Set<string>();
+    const nouns = new Set<string>();
+    if (this.room?.state) {
+      this.room.state.players.forEach((player: any, key: string) => {
+        if (key === this.localSessionId) return;
+        if (player.nameAdj) adjs.add(player.nameAdj);
+        if (player.nameNoun) nouns.add(player.nameNoun);
+      });
+    }
+    return { adjs, nouns };
+  }
+
   private setupStateListener(): void {
+    // Handle name rejection — auto-reroll with taken names excluded
+    this.room.onMessage("nameRejected", () => {
+      const taken = this.getTakenNames();
+      const newName = generateName(taken.adjs, taken.nouns);
+      this.networkManager.sendSetName(newName.adj, newName.noun);
+    });
+
+    // Handle start error — show message to host
+    this.room.onMessage("startError", (data: { message: string }) => {
+      this.statusText.setText(data.message);
+      this.time.delayedCall(3000, () => {
+        this.statusText.setText("Fix names and try again");
+      });
+    });
+
     this.room.onStateChange((state: any) => {
       if (this.transitioned) return;
 
@@ -298,6 +417,13 @@ export class LobbyScene extends Phaser.Scene {
         this.startButton = null;
       }
 
+      // Update public toggle label
+      const pubToggle = this.children.getByName("publicToggle") as Phaser.GameObjects.Container;
+      if (pubToggle) {
+        const pubLabel = pubToggle.getAt(1) as Phaser.GameObjects.Text;
+        pubLabel.setText(state.isPublic ? "🌐 PUBLIC" : "🔒 PRIVATE");
+      }
+
       // Update status
       const count = state.players.size;
       if (isHost) {
@@ -330,5 +456,29 @@ export class LobbyScene extends Phaser.Scene {
     this.startButton = this.add.container(400, 500, [bg, label]);
     this.startButton.setSize(200, 50);
     this.startButton.setDepth(HUD_DEPTH);
+
+    // Public toggle button
+    const pubBg = this.add
+      .rectangle(0, 0, 200, 36, BUTTON_BG, 0.85)
+      .setInteractive({ useHandCursor: true });
+
+    const pubLabel = this.add
+      .text(0, 0, "🔒 PRIVATE", {
+        fontSize: "14px",
+        color: AMBER,
+        fontFamily: FONT,
+      })
+      .setOrigin(0.5);
+
+    pubBg.on("pointerover", () => pubBg.setFillStyle(BUTTON_HOVER, 0.9));
+    pubBg.on("pointerout", () => pubBg.setFillStyle(BUTTON_BG, 0.85));
+    pubBg.on("pointerdown", () => {
+      this.networkManager.sendTogglePublic();
+    });
+
+    const pubContainer = this.add.container(400, 450, [pubBg, pubLabel]);
+    pubContainer.setSize(200, 36);
+    pubContainer.setDepth(HUD_DEPTH);
+    pubContainer.setName("publicToggle");
   }
 }
