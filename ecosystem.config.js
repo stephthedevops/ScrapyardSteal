@@ -8,6 +8,10 @@ module.exports = {
       env: {
         NODE_ENV: "production",
       },
+      // Let @colyseus/tools handle the port binding
+      wait_ready: true,
+      listen_timeout: 10000,
+      kill_timeout: 5000,
     },
   ],
 };
