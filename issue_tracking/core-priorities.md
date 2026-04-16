@@ -7,7 +7,7 @@ Must-do items before jam submission on April 26th.
 - [ ] Balance pass on tile claim cost, upgrade costs, and income rate
 - [ ] Playtest with 4+ players and tune border conflict pressure formula
 - [ ] Ensure absorbed players can reliably click tiles and mine gears for their team
-- [ ] Equidistant starting positions — Players placed equally spaced around a circle, max 2 spaces from edge
+- [x] Equidistant starting positions — Circular placement, max 2 tiles from edge
 - [ ] Decide min/max players — Verify and finalize supported player count range
 - [x] Tutorial / onboarding — 8-page step-by-step HOW TO PLAY scene with keyboard nav
 
@@ -20,17 +20,17 @@ Must-do items before jam submission on April 26th.
 
 ## Submission Requirements
 
-- [ ] Game runs in browser without plugins (HTML5)
-- [ ] Theme "Machines" is clearly represented (scrapyard, factories, bots)
-- [ ] New content created for the jam (not a pre-existing project)
+- [x] Game runs in browser without plugins (HTML5)
+- [x] Theme "Machines" is clearly represented (scrapyard, factories, bots)
+- [x] New content created for the jam (not a pre-existing project)
 
 ## Challenge Tracks
 
-- [ ] Build it with Phaser — confirm Phaser is the engine, submit to challenge
-- [ ] Open Source by GitHub — add LICENSE and README to repo, submit to challenge
+- [x] Build it with Phaser — confirmed
+- [x] Open Source by GitHub — MIT LICENSE added, repo is public
 - [ ] Deploy to Wavedash — deploy and submit for cash prizes
 - [ ] Property-based tests — Implement the 16 correctness properties from the design doc
-- [ ] Open source cleanup — README, LICENSE, contributing guide for GitHub challenge
+- [x] Open source cleanup — LICENSE and README in repo
 
 ## Polish — Must Have
 

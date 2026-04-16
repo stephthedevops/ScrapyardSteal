@@ -9,16 +9,17 @@
     "preview": "vite preview",
     "server": "ts-node --project tsconfig.server.json server/index.ts",
     "server:dev": "nodemon --exec \"ts-node --project tsconfig.server.json\" server/index.ts",
+    "server:build": "tsc --project tsconfig.server.json",
     "test": "vitest --run"
   },
   "dependencies": {
+    "colyseus": "^0.15.0",
+    "@colyseus/monitor": "^0.15.0",
     "colyseus.js": "^0.15.0",
     "phaser": "^3.80.0"
   },
   "devDependencies": {
-    "@colyseus/monitor": "^0.15.0",
     "@types/node": "^20.0.0",
-    "colyseus": "^0.15.0",
     "fast-check": "^4.6.0",
     "nodemon": "^3.1.0",
     "ts-node": "^10.9.0",

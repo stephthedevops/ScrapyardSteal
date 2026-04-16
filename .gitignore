@@ -2,3 +2,5 @@ node_modules/
 dist/
 dist-server/
 .env
+*.ppp
+.DS_Store
