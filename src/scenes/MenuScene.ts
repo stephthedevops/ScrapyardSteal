@@ -15,6 +15,8 @@ export class MenuScene extends Phaser.Scene {
   private joinBtn!: Phaser.GameObjects.Container;
   private backBtn!: Phaser.GameObjects.Container;
   private enterLobbyBtn!: Phaser.GameObjects.Container;
+  private howToPlayBtn!: Phaser.GameObjects.Container;
+  private quickPlayBtn!: Phaser.GameObjects.Container;
 
   constructor() {
     super({ key: "MenuScene" });
@@ -28,7 +30,7 @@ export class MenuScene extends Phaser.Scene {
       fontSize: "40px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5);
 
-    this.add.text(400, 130, "multiplayer territory game", {
+    this.add.text(400, 130, "expand. absorb. dominate the scrapyard.", {
       fontSize: "14px", color: AMBER, fontFamily: FONT,
     }).setOrigin(0.5);
 
@@ -38,6 +40,17 @@ export class MenuScene extends Phaser.Scene {
     this.joinBtn = this.makeButton(400, 320, "JOIN GAME", () => {
       this.showJoinInput();
     });
+
+    // How to Play button
+    this.howToPlayBtn = this.makeButton(400, 390, "HOW TO PLAY", () => {
+      this.scene.start("TutorialScene");
+    });
+
+    // Quick Play button (hidden initially, shown in join mode)
+    this.quickPlayBtn = this.makeButton(400, 490, "QUICK PLAY", () => {
+      this.scene.start("LobbyScene", { mode: "quickplay" });
+    });
+    this.quickPlayBtn.setAlpha(0).setVisible(false);
 
     // Join mode elements (hidden initially)
     this.add.text(400, 220, "ENTER ROOM CODE:", {
@@ -112,6 +125,8 @@ export class MenuScene extends Phaser.Scene {
     this.updateRoomCodeDisplay();
     this.createBtn.setAlpha(0).setVisible(false);
     this.joinBtn.setAlpha(0).setVisible(false);
+    this.howToPlayBtn.setAlpha(0).setVisible(false);
+    this.quickPlayBtn.setAlpha(1).setVisible(true);
     (this.children.getByName("joinLabel") as Phaser.GameObjects.Text)?.setAlpha(1);
     this.roomCodeText.setAlpha(1);
     (this.children.getByName("pasteBtn") as Phaser.GameObjects.Text)?.setAlpha(1);
@@ -129,6 +144,8 @@ export class MenuScene extends Phaser.Scene {
     this.backBtn.setAlpha(0).setVisible(false);
     this.createBtn.setAlpha(1).setVisible(true);
     this.joinBtn.setAlpha(1).setVisible(true);
+    this.howToPlayBtn.setAlpha(1).setVisible(true);
+    this.quickPlayBtn.setAlpha(0).setVisible(false);
   }
 
   private updateRoomCodeDisplay(): void {

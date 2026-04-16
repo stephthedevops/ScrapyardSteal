@@ -37,4 +37,5 @@ export class GameState extends Schema {
   @type("string") hostId: string = "";
   @type("string") shortCode: string = "";
   @type("number") timeRemaining: number = 300;
+  @type("boolean") isPublic: boolean = false;
 }

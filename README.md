@@ -1,5 +1,6 @@
 <p align="center">
   <img src="images/scrapyardsteal.png" alt="Scrapyard Steal" width="200"/>
+  <img src="images/bunnybot.png" alt="Bunnybot" width="120"/>
 </p>
 
 <h1 align="center">🏭 Scrapyard Steal</h1>

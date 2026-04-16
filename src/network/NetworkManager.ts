@@ -63,6 +63,24 @@ export class NetworkManager {
     this.room?.send("selectColor", { color });
   }
 
+  sendTogglePublic(): void {
+    this.room?.send("togglePublic", {});
+  }
+
+  async joinPublicRoom(): Promise<Room> {
+    const serverUrl =
+      import.meta.env.VITE_SERVER_URL || "ws://localhost:2567";
+    const httpUrl = serverUrl.replace("ws://", "http://").replace("wss://", "https://");
+
+    const res = await fetch(`${httpUrl}/public`);
+    if (!res.ok) {
+      throw new Error("No public rooms available");
+    }
+    const { roomId } = await res.json();
+    this.room = await colyseusClient.joinById(roomId);
+    return this.room;
+  }
+
   sendMineGear(x: number, y: number): void {
     this.room?.send("mineGear", { x, y });
   }

@@ -17,8 +17,9 @@ const GAME_HEIGHT = 600;
 export class HUDManager {
   private scene: Phaser.Scene;
 
-  // Stats panel (top-left)
+  // Stats panel (middle-left)
   private statsBg: Phaser.GameObjects.Rectangle;
+  private statsTitle: Phaser.GameObjects.Text;
   private statsText: Phaser.GameObjects.Text;
 
   // Leaderboard (top-right)
@@ -36,6 +37,9 @@ export class HUDManager {
   private notificationText: Phaser.GameObjects.Text;
   private notificationTimer?: Phaser.Time.TimerEvent;
 
+  // Player identity (below grid)
+  private identityText: Phaser.GameObjects.Text;
+
   // Callbacks for upgrade buttons
   public onUpgradeAttack: (() => void) | null = null;
   public onUpgradeDefense: (() => void) | null = null;
@@ -43,16 +47,25 @@ export class HUDManager {
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
 
-    // --- Stats panel (top-left) ---
+    // --- Stats panel (middle-left, outside grid area) ---
     this.statsBg = scene.add
-      .rectangle(8, 8, 200, 110, DARK_BG, DARK_BG_ALPHA)
+      .rectangle(4, GAME_HEIGHT / 2 - 80, 160, 160, DARK_BG, DARK_BG_ALPHA)
       .setOrigin(0, 0)
       .setDepth(HUD_DEPTH);
 
-    this.statsText = scene.add
-      .text(16, 14, "", {
+    this.statsTitle = scene.add
+      .text(12, GAME_HEIGHT / 2 - 74, "", {
         fontFamily: FONT_FAMILY,
-        fontSize: "13px",
+        fontSize: "11px",
+        color: GOLD,
+        wordWrap: { width: 148 },
+      })
+      .setDepth(HUD_DEPTH + 1);
+
+    this.statsText = scene.add
+      .text(12, GAME_HEIGHT / 2 - 54, "", {
+        fontFamily: FONT_FAMILY,
+        fontSize: "12px",
         color: AMBER,
         lineSpacing: 4,
       })
@@ -99,16 +112,16 @@ export class HUDManager {
       .setOrigin(0.5, 0.5);
 
     this.attackButton = this.createUpgradeButton(
-      GAME_WIDTH / 2 - 80,
-      GAME_HEIGHT - 50,
+      GAME_WIDTH - 75,
+      GAME_HEIGHT / 2 - 25,
       "⚔ ATK",
       this.attackCostText,
       () => this.onUpgradeAttack?.()
     );
 
     this.defenseButton = this.createUpgradeButton(
-      GAME_WIDTH / 2 + 80,
-      GAME_HEIGHT - 50,
+      GAME_WIDTH - 75,
+      GAME_HEIGHT / 2 + 25,
       "🛡 DEF",
       this.defenseCostText,
       () => this.onUpgradeDefense?.()
@@ -127,6 +140,17 @@ export class HUDManager {
       .setOrigin(0.5, 0.5)
       .setDepth(HUD_DEPTH + 2)
       .setAlpha(0);
+
+    // --- Player identity (below grid) ---
+    this.identityText = scene.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 16, "", {
+        fontFamily: FONT_FAMILY,
+        fontSize: "12px",
+        color: AMBER,
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(HUD_DEPTH + 1);
 
     // Set initial stat display
     this.updateStats(0, 1, 1, 1, 1);
@@ -173,37 +197,61 @@ export class HUDManager {
     attack: number,
     defense: number,
     tileCount: number,
-    incomeRate: number,
-    timeRemaining?: number
+    factories: number,
+    isTeamLead?: boolean
   ): void {
-    const timeStr = timeRemaining !== undefined
-      ? `${Math.floor(timeRemaining / 60)}:${String(timeRemaining % 60).padStart(2, "0")}`
-      : "";
+    const role = isTeamLead === false ? "Member" : "Lead";
     this.statsText.setText(
       [
-        timeStr ? `Time:    ${timeStr}` : "",
+        `Role:    ${role}`,
         `Scrap:   ${scrap}`,
         `Attack:  ${attack}`,
         `Defense: ${defense}`,
         `Tiles:   ${tileCount}`,
-        `Income:  +${incomeRate}/s`,
-      ].filter(Boolean).join("\n")
+        `🏭:      ${factories}x`,
+      ].join("\n")
     );
+  }
+
+  updateTeamName(name: string): void {
+    this.statsTitle.setText(name);
+    const titleHeight = this.statsTitle.height;
+    this.statsText.setPosition(12, this.statsTitle.y + titleHeight + 6);
+    const totalHeight = titleHeight + this.statsText.height + 20;
+    this.statsBg.setSize(160, Math.max(140, totalHeight));
+  }
+
+  updateIdentity(isTeamLead: boolean, teamName: string, playerAdj: string): void {
+    if (isTeamLead) {
+      this.identityText.setText(`You are ${teamName}.`);
+    } else {
+      this.identityText.setText(`You are the ${playerAdj} parts.`);
+    }
   }
 
   /**
    * Update the leaderboard. Sorts players by tileCount descending.
    */
-  updateLeaderboard(players: { id: string; tileCount: number }[]): void {
+  updateLeaderboard(players: { id: string; tileCount: number }[], timeRemaining?: number): void {
     const sorted = [...players].sort((a, b) => b.tileCount - a.tileCount);
     const lines = sorted.map(
       (p, i) => `${i + 1}. ${p.id} — ${p.tileCount}`
     );
+
+    const timeStr = timeRemaining !== undefined
+      ? `${Math.floor(timeRemaining / 60)}:${String(timeRemaining % 60).padStart(2, "0")}`
+      : "";
+    this.leaderboardTitle.setText(timeStr ? `LEADERBOARD  ${timeStr}` : "LEADERBOARD");
     this.leaderboardText.setText(lines.join("\n"));
 
     // Resize background to fit content
+    const textWidth = this.leaderboardText.width;
     const textHeight = this.leaderboardText.height;
-    this.leaderboardBg.setSize(260, textHeight + 30);
+    const bgWidth = Math.max(180, textWidth + 20);
+    this.leaderboardBg.setSize(bgWidth, textHeight + 30);
+    this.leaderboardBg.setPosition(GAME_WIDTH - 8, 8);
+    this.leaderboardTitle.setPosition(GAME_WIDTH - bgWidth, 14);
+    this.leaderboardText.setPosition(GAME_WIDTH - bgWidth, 32);
   }
 
   /**
