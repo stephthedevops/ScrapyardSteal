@@ -111,6 +111,59 @@ describe("findBorders", () => {
     const borders = findBorders(tiles, 2, 2);
     expect(borders).toHaveLength(0);
   });
+
+  /**
+   * Larger grid: 3×3 with three players forming distinct borders.
+   *
+   *   A A B
+   *   A C B
+   *   C C B
+   *
+   * Expected borders: A-B (column 1↔2 top), A-C (interior), B-C (column 2↔row 2)
+   */
+  it("3.5c detects multiple borders on a 3×3 grid with 3 players", () => {
+    const tiles = [
+      makeTile(0, 0, "A"), makeTile(1, 0, "A"), makeTile(2, 0, "B"),
+      makeTile(0, 1, "A"), makeTile(1, 1, "C"), makeTile(2, 1, "B"),
+      makeTile(0, 2, "C"), makeTile(1, 2, "C"), makeTile(2, 2, "B"),
+    ];
+
+    const borders = findBorders(tiles, 3, 3);
+    // Should have 3 unique borders: A-B, A-C, B-C
+    expect(borders).toHaveLength(3);
+
+    const pairKeys = borders.map((b) => `${b.playerAId}::${b.playerBId}`).sort();
+    expect(pairKeys).toEqual(["A::B", "A::C", "B::C"]);
+  });
+
+  /**
+   * 4×4 grid with L-shaped territory for player A.
+   *
+   *   A A B B
+   *   A . B .
+   *   A A . .
+   *   . . . .
+   *
+   * (. = unowned)
+   * Only one border: A-B along column 1↔2 (rows 0-1) and row 0 (col 1↔2).
+   */
+  it("3.5d detects border with L-shaped territory on a 4×4 grid", () => {
+    const tiles = [
+      makeTile(0, 0, "A"), makeTile(1, 0, "A"), makeTile(2, 0, "B"), makeTile(3, 0, "B"),
+      makeTile(0, 1, "A"), makeTile(1, 1, ""),   makeTile(2, 1, "B"), makeTile(3, 1, ""),
+      makeTile(0, 2, "A"), makeTile(1, 2, "A"),  makeTile(2, 2, ""),  makeTile(3, 2, ""),
+      makeTile(0, 3, ""),  makeTile(1, 3, ""),   makeTile(2, 3, ""),  makeTile(3, 3, ""),
+    ];
+
+    const borders = findBorders(tiles, 4, 4);
+    expect(borders).toHaveLength(1);
+    expect(borders[0].playerAId).toBe("A");
+    expect(borders[0].playerBId).toBe("B");
+    // A's border tiles: (1,0) is adjacent to (2,0)=B; (0,1) is not adjacent to B
+    // B's border tiles: (2,0) is adjacent to (1,0)=A; (2,1) is not adjacent to A
+    expect(borders[0].sharedTilesA.length).toBeGreaterThanOrEqual(1);
+    expect(borders[0].sharedTilesB.length).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe("resolveBorder", () => {
@@ -183,6 +236,81 @@ describe("resolveBorder", () => {
     // pressureB = 3*1 = 3, defenseA = 3*1 = 3 → stalemate
     const result = resolveBorder(border, { attack: 3, defense: 3 }, { attack: 3, defense: 3 });
 
+    expect(result).toBeNull();
+  });
+});
+
+describe("resolveBorder — edge cases", () => {
+  /**
+   * Edge case: zero attack and zero defense for both players.
+   * pressureA = 0*1 = 0, defenseB = 0*1 = 0 → not greater → no transfer
+   * pressureB = 0*1 = 0, defenseA = 0*1 = 0 → not greater → stalemate
+   */
+  it("3.9 returns null when both players have 0 attack and 0 defense", () => {
+    const tileA = makeTile(0, 0, "A");
+    const tileB = makeTile(1, 0, "B");
+
+    const border: BorderInfo = {
+      playerAId: "A",
+      playerBId: "B",
+      sharedTilesA: [tileA],
+      sharedTilesB: [tileB],
+    };
+
+    const result = resolveBorder(border, { attack: 0, defense: 0 }, { attack: 0, defense: 0 });
+    expect(result).toBeNull();
+  });
+
+  /**
+   * Edge case: asymmetric tile counts. A has 5 border tiles, B has 1.
+   * A: attack=2, defense=1; B: attack=10, defense=2
+   * pressureA = 2*5 = 10, defenseB = 2*1 = 2 → A wins (10 > 2)
+   * pressureB = 10*1 = 10, defenseA = 1*5 = 5 → B also wins (10 > 5)
+   * But A is checked first, so A wins.
+   */
+  it("3.10 with asymmetric tile counts, first winning condition takes priority", () => {
+    const tilesA = [
+      makeTile(0, 0, "A"),
+      makeTile(1, 0, "A"),
+      makeTile(2, 0, "A"),
+      makeTile(3, 0, "A"),
+      makeTile(4, 0, "A"),
+    ];
+    const tilesB = [makeTile(0, 1, "B")];
+
+    const border: BorderInfo = {
+      playerAId: "A",
+      playerBId: "B",
+      sharedTilesA: tilesA,
+      sharedTilesB: tilesB,
+    };
+
+    const result = resolveBorder(border, { attack: 2, defense: 1 }, { attack: 10, defense: 2 });
+    // A's pressure (2*5=10) > B's defense (2*1=2) → A wins, checked first
+    expect(result).not.toBeNull();
+    expect(result!.toId).toBe("A");
+    expect(result!.fromId).toBe("B");
+  });
+
+  /**
+   * Edge case: one player has 0 attack, other has positive attack.
+   * A: attack=0, defense=5; B: attack=3, defense=1
+   * pressureA = 0*1 = 0, defenseB = 1*1 = 1 → 0 > 1 is false
+   * pressureB = 3*1 = 3, defenseA = 5*1 = 5 → 3 > 5 is false → stalemate
+   */
+  it("3.11 zero attack player cannot win even against low defense", () => {
+    const tileA = makeTile(0, 0, "A");
+    const tileB = makeTile(1, 0, "B");
+
+    const border: BorderInfo = {
+      playerAId: "A",
+      playerBId: "B",
+      sharedTilesA: [tileA],
+      sharedTilesB: [tileB],
+    };
+
+    const result = resolveBorder(border, { attack: 0, defense: 5 }, { attack: 3, defense: 1 });
+    // pressureA=0 not > defenseB=1, pressureB=3 not > defenseA=5 → stalemate
     expect(result).toBeNull();
   });
 });

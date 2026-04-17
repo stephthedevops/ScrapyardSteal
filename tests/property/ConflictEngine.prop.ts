@@ -138,18 +138,21 @@ describe("Property-Based Tests — ConflictEngine", () => {
   /**
    * **Validates: Requirements 1.8**
    * Property 8: Stalemate when both players have identical stats and equal
-   * border tile counts — generate random attack (1–50), defense (1–50),
-   * and tileCount (1–10); construct a BorderInfo with tileCount Tile objects
-   * per side using inline makeTile helper; call resolveBorder with identical
-   * {attack, defense} for both players; assert result is null.
+   * border tile counts — generate random stat (1–50) and tileCount (1–10);
+   * construct a BorderInfo with tileCount Tile objects per side.
+   *
+   * Stalemate requires pressureA == defenseB AND pressureB == defenseA.
+   * With equal tile counts n: pressureA = atk*n, defenseB = def*n.
+   * This holds iff atk == def. So we use the same value for both attack
+   * and defense to guarantee the stalemate invariant. The `defense` generator
+   * is intentionally unused — the property only holds when atk == def.
    */
   it("4.8 Stalemate when both players have identical stats and equal border tile counts", () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 50 }),
-        fc.integer({ min: 1, max: 50 }),
         fc.integer({ min: 1, max: 10 }),
-        (attack, defense, tileCount) => {
+        (stat, tileCount) => {
           function makeTile(x: number, y: number, ownerId: string): Tile {
             const t = new Tile();
             t.x = x;
@@ -172,15 +175,12 @@ describe("Property-Based Tests — ConflictEngine", () => {
             sharedTilesB: tilesB,
           };
 
-          // For a true stalemate, both pressure values must equal both defense values.
-          // With equal tile counts n:
-          //   pressureA = attack * n, defenseB = defense * n → equal iff attack == defense
-          //   pressureB = attack * n, defenseA = defense * n → equal iff attack == defense
-          // We use attack as both attack and defense to guarantee the stalemate invariant.
+          // Both players get identical {attack: stat, defense: stat} so
+          // pressureA == defenseB and pressureB == defenseA → stalemate.
           const result = resolveBorder(
             border,
-            { attack, defense: attack },
-            { attack, defense: attack }
+            { attack: stat, defense: stat },
+            { attack: stat, defense: stat }
           );
 
           expect(result).toBeNull();

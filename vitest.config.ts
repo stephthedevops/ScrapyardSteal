@@ -7,6 +7,8 @@ export default defineConfig({
     globals: true,
   },
   resolve: {
+    // Vite resolves "/" as the project root, not the filesystem root.
+    // These aliases let tests import from "server/..." and "src/..." directly.
     alias: {
       server: "/server",
       src: "/src",

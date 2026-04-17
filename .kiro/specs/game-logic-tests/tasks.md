@@ -41,7 +41,7 @@
   - [x] 4.5 Tile claim cost is always >= 10 — generate random non-negative `tileCount` (0–10000), assert `cost(tileCount) >= 10`
   - [x] 4.6 Upgrade cost is always positive for positive stat values — generate random `statValue` (1–100), assert `upgradeCost(statValue) > 0`
   - [x] 4.7 Upgrade cost is monotonically increasing — generate random `a` and `b` where `a < b` (1–100), assert `upgradeCost(a) < upgradeCost(b)`
-  - [x] 4.8 Stalemate when both players have identical stats and equal border tile counts — generate random `attack` (1–50), `defense` (1–50), and `tileCount` (1–10); construct a `BorderInfo` with `tileCount` Tile objects per side using inline `makeTile` helper; call `resolveBorder` with identical `{attack, defense}` for both players; assert result is `null`
+  - [x] 4.8 Stalemate when both players have identical stats and equal border tile counts — generate random `stat` (1–50) and `tileCount` (1–10); construct a `BorderInfo` with `tileCount` Tile objects per side using inline `makeTile` helper; call `resolveBorder` with identical `{attack: stat, defense: stat}` for both players; assert result is `null`
 
 ### Agent C: DirectionFilter Tests
 - [x] 5. Create unit tests for DirectionFilter (`tests/unit/logic/DirectionFilter.test.ts`)

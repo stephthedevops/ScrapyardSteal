@@ -74,15 +74,20 @@ describe("Property-Based Tests — GridManager", () => {
    * Property 4: All adjacent tile results are within grid bounds —
    * generate random (x, y) within random grid dimensions, assert all neighbors
    * satisfy 0 <= nx < width and 0 <= ny < height.
+   *
+   * Note: x/y are generated as separate property arguments (not fc.sample inside
+   * the callback) so fast-check can shrink them independently on failure.
    */
   it("Property 4: All adjacent tile results are within grid bounds", () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 50 }),
         fc.integer({ min: 1, max: 50 }),
-        (width, height) => {
-          const x = fc.sample(fc.integer({ min: 0, max: width - 1 }), 1)[0];
-          const y = fc.sample(fc.integer({ min: 0, max: height - 1 }), 1)[0];
+        fc.integer({ min: 0, max: 49 }),
+        fc.integer({ min: 0, max: 49 }),
+        (width, height, xRaw, yRaw) => {
+          const x = xRaw % width;
+          const y = yRaw % height;
           const neighbors = getAdjacentTiles(x, y, width, height);
           for (const n of neighbors) {
             expect(n.x).toBeGreaterThanOrEqual(0);
@@ -100,15 +105,20 @@ describe("Property-Based Tests — GridManager", () => {
    * Property 5: Interior tiles always have exactly 4 neighbors —
    * generate random grid (min 3×3) and random interior position
    * (0 < x < w-1, 0 < y < h-1), assert getAdjacentTiles returns exactly 4.
+   *
+   * Note: x/y are generated as separate property arguments (not fc.sample inside
+   * the callback) so fast-check can shrink them independently on failure.
    */
   it("Property 5: Interior tiles always have exactly 4 neighbors", () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 3, max: 50 }),
         fc.integer({ min: 3, max: 50 }),
-        (width, height) => {
-          const x = fc.sample(fc.integer({ min: 1, max: width - 2 }), 1)[0];
-          const y = fc.sample(fc.integer({ min: 1, max: height - 2 }), 1)[0];
+        fc.integer({ min: 1, max: 48 }),
+        fc.integer({ min: 1, max: 48 }),
+        (width, height, xRaw, yRaw) => {
+          const x = (xRaw % (width - 2)) + 1;
+          const y = (yRaw % (height - 2)) + 1;
           const neighbors = getAdjacentTiles(x, y, width, height);
           expect(neighbors).toHaveLength(4);
         }
