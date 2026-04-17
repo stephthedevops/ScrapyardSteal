@@ -10,7 +10,6 @@ Post-jam features and improvements. Not blocking submission but worth building a
 - [ ] Power-ups — Special tiles that grant temporary buffs (double income, shield, speed)
 - [ ] Alliances — Players can voluntarily merge teams before being absorbed
 - [ ] Fog of war — Only see tiles near your territory, rest is hidden
-- [ ] Fix non-host lobby transition bug (players stuck on lobby screen)
 
 ## Lobby & Social
 
@@ -40,7 +39,6 @@ Post-jam features and improvements. Not blocking submission but worth building a
 
 - [ ] Performance profiling — Test with 20 players on max grid size
 - [ ] Persistent room codes — Store short codes in Redis/DB instead of in-memory
-- [ ] Rate limiting — Prevent click spam on tiles and gears
 - [ ] Server-side validation hardening — Fuzz test all message handlers
 - [ ] CI/CD pipeline — Auto-deploy on push to main
 - [ ] Analytics — Track player count, game duration, average tiles per game
