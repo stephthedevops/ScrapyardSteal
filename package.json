@@ -1,12 +1,12 @@
 {
   "name": "scrapyard-steal",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "private": true,
   "description": "Multiplayer clicker/strategy game for Gamedev.js Jam 2026",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build:prod": "VITE_SERVER_URL=wss://us-ord-ef0ec457.colyseus.cloud vite build",
+    "build:prod": "VITE_SERVER_URL=wss://us-ord-ef0ec457.colyseus.cloud vite build && cd dist && zip -r ../dist.zip . && cd ..",
     "preview": "vite preview",
     "server": "ts-node --project tsconfig.server.json server/index.ts",
     "server:dev": "nodemon --exec \"ts-node --project tsconfig.server.json\" server/index.ts",

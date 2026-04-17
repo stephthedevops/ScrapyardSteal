@@ -44,3 +44,20 @@ Post-jam features and improvements. Not blocking submission but worth building a
 - [ ] Server-side validation hardening — Fuzz test all message handlers
 - [ ] CI/CD pipeline — Auto-deploy on push to main
 - [ ] Analytics — Track player count, game duration, average tiles per game
+
+## From Code Audit — Code Quality & Performance
+
+- [ ] O(n) tile lookup in claimTile/mineGear — create 2D grid lookup for O(1) access
+- [ ] Full grid re-render every tick — implement dirty tile tracking, only update changed tiles
+- [ ] O(n²) border detection in ConflictEngine — optimize with spatial indexing
+- [ ] Spawn/gear icons destroyed and recreated every render — pool or cache icon objects
+- [ ] Duplicate state initialization in GameScene (setupStateListener + immediate check)
+- [ ] Magic numbers throughout codebase — extract to shared constants file
+- [ ] No debouncing on pointer move for tooltips
+- [ ] Notification timer not cleaned up on scene change
+- [ ] No type safety on room messages — create typed message interfaces
+- [ ] Leaderboard sorts players array on every state change — cache sorted order
+- [ ] No object pooling for tween animations (absorption, claim effects)
+- [ ] No feedback on failed tile claim or upgrade (silent rejection)
+- [ ] No direction filter indicator on HUD (player doesn't know which direction is active)
+- [ ] No forfeit/leave button during game

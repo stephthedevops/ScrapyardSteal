@@ -26,6 +26,8 @@
 
 ---
 
+🎮 [**Play Now**](https://stephthedevops.github.io/ScrapyardSteal/) | [itch.io](https://felartaillier.itch.io/scrapyardsteal)
+
 ## What is Scrapyard Steal?
 
 A multiplayer clicker/strategy game where 2–20 players compete in a shared scrapyard. Control a factory-machine, expand your territory by claiming scrap tiles, upgrade your attack and defense, and absorb rival machines. When you absorb an opponent, they join your team and help you grow even faster.
