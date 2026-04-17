@@ -7,7 +7,7 @@
     "experimentalDecorators": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "dist-server",
+    "outDir": "build",
     "rootDir": "server",
     "lib": ["ES2020"]
   },

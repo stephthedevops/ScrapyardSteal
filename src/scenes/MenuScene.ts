@@ -87,6 +87,17 @@ export class MenuScene extends Phaser.Scene {
     this.backBtn = this.makeButton(400, 420, "BACK", () => this.hideJoinInput());
     this.backBtn.setAlpha(0).setVisible(false);
 
+    // About button — half height, always at bottom
+    const aboutBg = this.add.rectangle(0, 0, 260, 25, BUTTON_BG, 0.7)
+      .setInteractive({ useHandCursor: true });
+    const aboutLabel = this.add.text(0, 0, "About the Game", {
+      fontSize: "11px", color: AMBER, fontFamily: FONT,
+    }).setOrigin(0.5);
+    aboutBg.on("pointerover", () => aboutBg.setFillStyle(BUTTON_HOVER, 0.9));
+    aboutBg.on("pointerout", () => aboutBg.setFillStyle(BUTTON_BG, 0.7));
+    aboutBg.on("pointerdown", () => this.showAboutPopup());
+    this.add.container(400, 575, [aboutBg, aboutLabel]).setSize(260, 25);
+
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
       if (!this.joinMode) return;
       if (event.key === "Backspace") {
@@ -152,5 +163,38 @@ export class MenuScene extends Phaser.Scene {
     this.roomCodeText.setText(
       this.roomCodeInput.length === 0 ? "_ _ _ _ _" : this.roomCodeInput.split("").join(" ")
     );
+  }
+
+  private showAboutPopup(): void {
+    const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.7)
+      .setDepth(200).setInteractive();
+    const box = this.add.rectangle(400, 280, 360, 260, 0x1a1a2e, 0.95)
+      .setDepth(201).setStrokeStyle(2, 0x3a3a2a);
+    const title = this.add.text(400, 180, "SCRAPYARD STEAL", {
+      fontSize: "18px", color: "#ffcc44", fontFamily: "monospace",
+    }).setOrigin(0.5).setDepth(202);
+    const version = this.add.text(400, 205, "v0.4.1", {
+      fontSize: "11px", color: "#e0a030", fontFamily: "monospace",
+    }).setOrigin(0.5).setDepth(202);
+    const team = this.add.text(400, 250, [
+      "Team:",
+      "  Steph Hicks",
+      "  Nathan Engert",
+      "  Valokor",
+      "",
+      "github.com/stephthedevops/ScrapyardSteal",
+      "",
+      "Built for Gamedev.js Jam 2026",
+    ].join("\n"), {
+      fontSize: "11px", color: "#e0a030", fontFamily: "monospace",
+      align: "center", lineSpacing: 3,
+    }).setOrigin(0.5, 0).setDepth(202);
+    const closeBtn = this.add.text(400, 380, "[CLOSE]", {
+      fontSize: "13px", color: "#ffcc44", fontFamily: "monospace",
+    }).setOrigin(0.5).setDepth(202).setInteractive({ useHandCursor: true });
+    closeBtn.on("pointerdown", () => {
+      overlay.destroy(); box.destroy(); title.destroy();
+      version.destroy(); team.destroy(); closeBtn.destroy();
+    });
   }
 }

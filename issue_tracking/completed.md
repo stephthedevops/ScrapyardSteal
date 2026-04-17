@@ -72,3 +72,25 @@ Items that have been implemented and verified.
 - [x] Menu: HOW TO PLAY and QUICK PLAY buttons, proper show/hide in join mode
 - [x] Lobby tagline: "Machines built to smash, weld, absorb, and kaboom."
 - [x] Elite bot uniqueness — can't select a secret bot already in the lobby
+
+## v0.4.1 Additions
+
+- [x] MIT LICENSE added
+- [x] Equidistant starting positions — max 2 tiles from edge
+- [x] Tutorial / onboarding — 8-page HOW TO PLAY scene
+- [x] Game runs in browser without plugins (HTML5) — verified
+- [x] Theme "Machines" clearly represented — verified
+- [x] New content created for the jam — verified
+- [x] Build it with Phaser — confirmed
+- [x] Open Source by GitHub — MIT LICENSE, repo public
+- [x] Open source cleanup — LICENSE and README in repo
+- [x] Bounds checking on tile coordinates in claimTile/mineGear
+- [x] gearScrap negative guard (Math.max)
+- [x] Name sanitization (truncation on server)
+- [x] Color validation against allowed palette
+- [x] Attack/defense max cap (50)
+- [x] About the Game button — team names, version, GitHub link
+- [x] Colyseus Cloud deployment — server live at us-ord-ef0ec457.colyseus.cloud
+- [x] ecosystem.config.js + @colyseus/tools integration
+- [x] GitHub Pages site with itch.io embed
+- [x] build:prod script with auto-zip
