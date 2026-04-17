@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scrapyard Steal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      color: #e0a030;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    header {
+      text-align: center;
+      padding: 2rem 1rem 1rem;
+    }
+    header img {
+      width: 120px;
+      margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-size: 2.5rem;
+      color: #ffcc44;
+      margin-bottom: 0.25rem;
+    }
+    .tagline {
+      font-size: 0.9rem;
+      color: #e0a030;
+      margin-bottom: 1.5rem;
+    }
+    .game-frame {
+      width: 820px;
+      max-width: 95vw;
+      margin-bottom: 1.5rem;
+    }
+    .game-frame iframe {
+      width: 100%;
+      height: 620px;
+      border: 2px solid #3a3a2a;
+      border-radius: 4px;
+    }
+    .links {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .links a {
+      color: #ffcc44;
+      text-decoration: none;
+      padding: 0.5rem 1.2rem;
+      border: 1px solid #3a3a2a;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    .links a:hover {
+      background: #3a3a2a;
+    }
+    footer {
+      padding: 1rem;
+      font-size: 0.75rem;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="https://raw.githubusercontent.com/stephthedevops/ScrapyardSteal/main/images/scrapyardsteal.png" alt="Scrapyard Steal">
+    <h1>Scrapyard Steal</h1>
+    <p class="tagline">expand. absorb. dominate the scrapyard.</p>
+  </header>
+
+  <div class="game-frame">
+    <iframe src="https://itch.io/embed-upload/17191100?color=333333" allowfullscreen frameborder="0">
+      <a href="https://felartaillier.itch.io/scrapyardsteal">Play Scrapyard Steal on itch.io</a>
+    </iframe>
+  </div>
+
+  <div class="links">
+    <a href="https://felartaillier.itch.io/scrapyardsteal" target="_blank">itch.io Page</a>
+    <a href="https://github.com/stephthedevops/ScrapyardSteal" target="_blank">GitHub Repo</a>
+    <a href="https://itch.io/jam/gamedevjs-2026" target="_blank">Gamedev.js Jam 2026</a>
+  </div>
+
+  <footer>
+    Built for Gamedev.js Jam 2026 — Theme: Machines
+  </footer>
+</body>
+</html>

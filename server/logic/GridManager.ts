@@ -68,17 +68,18 @@ export function assignStartingPositions(
 
   const centerX = gridWidth / 2;
   const centerY = gridHeight / 2;
-  // Radius: 40% of the smaller dimension to keep positions away from edges
-  const radius = Math.floor(Math.min(gridWidth, gridHeight) * 0.4);
+  // Radius: place players close to edges but at least 2 tiles in
+  const margin = 2;
+  const radius = Math.floor(Math.min(gridWidth, gridHeight) / 2) - margin;
 
   for (let i = 0; i < count; i++) {
     const angle = (2 * Math.PI * i) / count - Math.PI / 2; // start from top
     const x = Math.round(centerX + radius * Math.cos(angle));
     const y = Math.round(centerY + radius * Math.sin(angle));
 
-    // Clamp to grid bounds
-    const clampedX = Math.max(0, Math.min(gridWidth - 1, x));
-    const clampedY = Math.max(0, Math.min(gridHeight - 1, y));
+    // Clamp: at least 2 from edge, within bounds
+    const clampedX = Math.max(margin, Math.min(gridWidth - 1 - margin, x));
+    const clampedY = Math.max(margin, Math.min(gridHeight - 1 - margin, y));
 
     result.set(playerIds[i], { x: clampedX, y: clampedY });
   }

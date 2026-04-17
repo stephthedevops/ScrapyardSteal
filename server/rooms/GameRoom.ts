@@ -64,7 +64,8 @@ export class GameRoom extends Room<GameState> {
 
       const { x, y } = data;
 
-      // Find the tile at (x, y)
+      // Bounds check
+      if (x < 0 || x >= this.state.gridWidth || y < 0 || y >= this.state.gridHeight) return;
       const tile = this.state.tiles.find((t) => t.x === x && t.y === y);
       if (!tile || tile.ownerId !== "") return;
 
@@ -91,6 +92,7 @@ export class GameRoom extends Room<GameState> {
 
       const cost = calculateUpgradeCost(player.attack);
       if (player.resources < cost) return;
+      if (player.attack >= 50) return; // max cap
 
       player.resources -= cost;
       player.attack += 1;
@@ -103,6 +105,7 @@ export class GameRoom extends Room<GameState> {
 
       const cost = calculateUpgradeCost(player.defense);
       if (player.resources < cost) return;
+      if (player.defense >= 50) return; // max cap
 
       player.resources -= cost;
       player.defense += 1;
@@ -133,6 +136,9 @@ export class GameRoom extends Room<GameState> {
         leader = teamLeader;
       }
 
+      // Bounds check
+      if (data.x < 0 || data.x >= this.state.gridWidth || data.y < 0 || data.y >= this.state.gridHeight) return;
+
       const tile = this.state.tiles.find((t) => t.x === data.x && t.y === data.y);
       if (!tile || !tile.hasGear || tile.gearScrap <= 0) return;
 
@@ -149,7 +155,7 @@ export class GameRoom extends Room<GameState> {
       // Extract scrap = attack × factory multiplier, capped by remaining gearScrap
       const baseExtract = leader.attack * multiplier;
       const extracted = Math.min(baseExtract, tile.gearScrap);
-      tile.gearScrap -= extracted;
+      tile.gearScrap = Math.max(0, tile.gearScrap - extracted);
       leader.resources += extracted;
 
       // Remove gear when depleted
@@ -230,11 +236,20 @@ export class GameRoom extends Room<GameState> {
       }
     });
 
+    // Allowed color palette
+    const ALLOWED_COLORS = [
+      0xb87333, 0x4a8a5e, 0xffd700, 0x8a8a7a, 0x7a3ea0,
+      0x0047ab, 0xff00ff, 0x8b4513, 0xdbe4eb, 0x36454f,
+    ];
+
     // Player selects a color
     this.onMessage("selectColor", (client, data: { color: number }) => {
       if (this.state.phase !== "waiting") return;
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
+
+      // Validate color is in allowed palette
+      if (!ALLOWED_COLORS.includes(data.color)) return;
 
       // Check if color is already taken by another player
       let taken = false;

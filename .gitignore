@@ -1,7 +1,11 @@
 node_modules/
 dist/
-dist-server/
+build/
 .env
+*.ppp
+.DS_Store
+dist.zip
+.colyseus-cloud.json
 
 # Test artifacts
 tests/e2e/results/

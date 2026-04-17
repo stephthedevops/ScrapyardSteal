@@ -26,6 +26,8 @@
 
 ---
 
+🎮 [**Play Now**](https://stephthedevops.github.io/ScrapyardSteal/) | [itch.io](https://felartaillier.itch.io/scrapyardsteal)
+
 ## What is Scrapyard Steal?
 
 A multiplayer clicker/strategy game where 2–20 players compete in a shared scrapyard. Control a factory-machine, expand your territory by claiming scrap tiles, upgrade your attack and defense, and absorb rival machines. When you absorb an opponent, they join your team and help you grow even faster.
@@ -147,6 +149,21 @@ npm run build
 | Build it with Phaser | ✅ Eligible |
 | Open Source by GitHub | ✅ Eligible |
 | Deploy to Wavedash | 🔲 Pending |
+
+## 📋 Issue Tracking
+
+We use a lightweight markdown-based issue tracking system in [`issue_tracking/`](issue_tracking/).
+
+| File | What it tracks |
+|------|---------------|
+| [Core Priorities](issue_tracking/core-priorities.md) | Must-do before jam submission |
+| [Known Bugs](issue_tracking/known-bugs.md) | Confirmed bugs |
+| [Nice-to-Haves](issue_tracking/nice-to-haves.md) | Polish items |
+| [Backlog](issue_tracking/backlog.md) | Post-jam / future features |
+| [Completed](issue_tracking/completed.md) | Done and verified |
+| [Rejected](issue_tracking/rejected.md) | Decided against |
+
+See [`issue_tracking/00_README.md`](issue_tracking/00_README.md) for how to add items, tag for triage, and assign work.
 
 ## 📄 License
 
