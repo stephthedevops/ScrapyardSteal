@@ -98,6 +98,34 @@ export function generateName(
   return { adj, noun };
 }
 
+export const HOUSEHOLD_ROID: string[] = [
+  "Fridgeroid", "Toasteroid", "Blenderoid", "Vacuumroid", "Microwaveroid",
+  "Dishwasheroid", "Ovenroid", "Kettleroid", "Mixeroid", "Grilleroid",
+  "Washeroid", "Dryeroid", "Ironroid", "Fanroid", "Lamproid",
+  "Clockroid", "Radioroid", "Speakeroid", "Printeroid", "Scanneroid",
+  "Routeroid", "Moproid", "Broomroid", "Heateroid", "Cooleroid",
+  "Juiceroid", "Chopperoid", "Steameroid", "Fryeroid", "Bakeroid",
+  "Freezeroid", "Humidroid", "Showeroid", "Sinkroid", "Stoveroid",
+];
+
+export function generateAIName(
+  takenAdjs: Set<string>,
+  takenNouns: Set<string>
+): { adj: string; noun: string } {
+  const availAdjs = ADJECTIVES.filter((a) => !takenAdjs.has(a));
+  const availNouns = HOUSEHOLD_ROID.filter((n) => !takenNouns.has(n));
+
+  const adj = availAdjs.length > 0
+    ? availAdjs[Math.floor(Math.random() * availAdjs.length)]
+    : ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+
+  const noun = availNouns.length > 0
+    ? availNouns[Math.floor(Math.random() * availNouns.length)]
+    : HOUSEHOLD_ROID[Math.floor(Math.random() * HOUSEHOLD_ROID.length)];
+
+  return { adj, noun };
+}
+
 export function formatName(adj: string, noun: string): string {
   return `${adj} ${noun}`;
 }

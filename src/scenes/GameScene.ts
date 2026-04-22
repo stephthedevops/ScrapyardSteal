@@ -16,6 +16,7 @@ export class GameScene extends Phaser.Scene {
   private gameEnded = false;
   private tooltipText!: Phaser.GameObjects.Text;
   private connectingText: Phaser.GameObjects.Text | null = null;
+  private hintPopupElements: Phaser.GameObjects.GameObject[] = [];
 
   constructor() {
     super({ key: "GameScene" });
@@ -69,6 +70,9 @@ export class GameScene extends Phaser.Scene {
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
       this.handleTooltip(pointer);
     });
+
+    // Hint button
+    this.createHintButton();
   }
 
   private setupStateListener(): void {
@@ -228,7 +232,12 @@ export class GameScene extends Phaser.Scene {
         leaderboardData.push({ id: player.teamName || `${player.nameAdj} ${player.nameNoun}`.trim() || key.slice(0, 10), tileCount: player.tileCount });
       }
     });
-    this.hudManager.updateLeaderboard(leaderboardData, state.timeRemaining);
+    this.hudManager.updateLeaderboard(
+      leaderboardData,
+      state.timeRemaining,
+      state.matchFormat,
+      state.seriesScoresJSON
+    );
 
     // Detect new absorptions and show notifications / effects
     this.detectAbsorptions(state);
@@ -350,7 +359,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (tileHasGear && (tileOwnerId === "" || tileOwnerId === effectiveId)) {
-      // Mine the gear if it's ours or unclaimed
+      // Optimistic mine flash before sending network message
+      this.gridRenderer!.playMineFlash(gridPos.x, gridPos.y);
       this.networkManager.sendMineGear(gridPos.x, gridPos.y);
     }
   }
@@ -455,6 +465,81 @@ export class GameScene extends Phaser.Scene {
     bg.on("pointerout", () => bg.setFillStyle(0x3a6a2a, 0.9));
     bg.on("pointerdown", () => {
       this.scene.start("MenuScene");
+    });
+  }
+
+  private createHintButton(): void {
+    const btn = this.add
+      .text(20, 555, "💡", {
+        fontSize: "24px",
+        fontFamily: "monospace",
+      })
+      .setInteractive({ useHandCursor: true })
+      .setDepth(100);
+
+    btn.on("pointerdown", () => this.showHintPopup());
+  }
+
+  private showHintPopup(): void {
+    // Don't open multiple popups
+    if (this.hintPopupElements.length > 0) return;
+
+    const overlay = this.add
+      .rectangle(400, 300, 800, 600, 0x000000, 0.7)
+      .setDepth(200)
+      .setInteractive();
+    this.hintPopupElements.push(overlay);
+
+    const box = this.add
+      .rectangle(400, 280, 340, 260, 0x1a1a2e, 0.95)
+      .setDepth(201)
+      .setStrokeStyle(2, 0x3a3a2a);
+    this.hintPopupElements.push(box);
+
+    const title = this.add
+      .text(400, 180, "CONTROLS", {
+        fontSize: "16px",
+        color: "#ffcc44",
+        fontFamily: "monospace",
+      })
+      .setOrigin(0.5)
+      .setDepth(202);
+    this.hintPopupElements.push(title);
+
+    const controls = [
+      "Click tile      → Claim / Mine gear",
+      "Arrow keys      → Set expansion direction",
+      "Same arrow      → Clear direction",
+      "Escape          → Clear direction",
+      "⚔ ATK / 🛡 DEF  → Upgrade (costs scrap)",
+    ].join("\n");
+
+    const body = this.add
+      .text(400, 285, controls, {
+        fontSize: "12px",
+        color: "#e0a030",
+        fontFamily: "monospace",
+        lineSpacing: 6,
+        align: "left",
+      })
+      .setOrigin(0.5)
+      .setDepth(202);
+    this.hintPopupElements.push(body);
+
+    const closeBtn = this.add
+      .text(555, 165, "✕", {
+        fontSize: "18px",
+        color: "#ffcc44",
+        fontFamily: "monospace",
+      })
+      .setOrigin(0.5)
+      .setDepth(202)
+      .setInteractive({ useHandCursor: true });
+    this.hintPopupElements.push(closeBtn);
+
+    closeBtn.on("pointerdown", () => {
+      this.hintPopupElements.forEach((el) => el.destroy());
+      this.hintPopupElements = [];
     });
   }
 

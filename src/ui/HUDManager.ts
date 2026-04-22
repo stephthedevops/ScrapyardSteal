@@ -232,7 +232,12 @@ export class HUDManager {
   /**
    * Update the leaderboard. Sorts players by tileCount descending.
    */
-  updateLeaderboard(players: { id: string; tileCount: number }[], timeRemaining?: number): void {
+  updateLeaderboard(
+    players: { id: string; tileCount: number }[],
+    timeRemaining?: number,
+    matchFormat?: string,
+    seriesScoresJSON?: string
+  ): void {
     const sorted = [...players].sort((a, b) => b.tileCount - a.tileCount);
     const lines = sorted.map(
       (p, i) => `${i + 1}. ${p.id} — ${p.tileCount}`
@@ -241,7 +246,22 @@ export class HUDManager {
     const timeStr = timeRemaining !== undefined
       ? `${Math.floor(timeRemaining / 60)}:${String(timeRemaining % 60).padStart(2, "0")}`
       : "";
-    this.leaderboardTitle.setText(timeStr ? `LEADERBOARD  ${timeStr}` : "LEADERBOARD");
+
+    let titlePrefix = "LEADERBOARD";
+    if (matchFormat && matchFormat !== "single" && seriesScoresJSON) {
+      try {
+        const scores: Record<string, number> = JSON.parse(seriesScoresJSON);
+        const scoreValues = Object.values(scores);
+        if (scoreValues.length > 0) {
+          const scoreStr = scoreValues.join("-");
+          titlePrefix = `LEADERBOARD [${scoreStr}]`;
+        }
+      } catch {
+        // Invalid JSON — fall back to default title
+      }
+    }
+
+    this.leaderboardTitle.setText(timeStr ? `${titlePrefix}  ${timeStr}` : titlePrefix);
     this.leaderboardText.setText(lines.join("\n"));
 
     // Resize background to fit content

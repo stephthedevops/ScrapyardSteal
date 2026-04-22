@@ -173,7 +173,7 @@ export class MenuScene extends Phaser.Scene {
     const title = this.add.text(400, 180, "SCRAPYARD STEAL", {
       fontSize: "18px", color: "#ffcc44", fontFamily: "monospace",
     }).setOrigin(0.5).setDepth(202);
-    const version = this.add.text(400, 205, "v0.4.1", {
+    const version = this.add.text(400, 205, `v${__APP_VERSION__}`, {
       fontSize: "11px", color: "#e0a030", fontFamily: "monospace",
     }).setOrigin(0.5).setDepth(202);
     const team = this.add.text(400, 250, [

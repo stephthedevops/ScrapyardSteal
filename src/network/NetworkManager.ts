@@ -89,6 +89,18 @@ export class NetworkManager {
     this.room?.send("setName", { adj, noun });
   }
 
+  sendSetConfig(config: { timeLimit?: number; matchFormat?: string }): void {
+    this.room?.send("setConfig", config);
+  }
+
+  sendAddAI(color: number): void {
+    this.room?.send("addAI", { color });
+  }
+
+  sendRemoveAI(aiPlayerId: string): void {
+    this.room?.send("removeAI", { aiPlayerId });
+  }
+
   onStateChange(callback: (state: any) => void): void {
     this.room?.onStateChange(callback);
   }

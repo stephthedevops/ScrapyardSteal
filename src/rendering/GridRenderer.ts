@@ -151,6 +151,30 @@ export class GridRenderer {
     }
   }
 
+  /** Play a gold flash animation on a gear tile being mined */
+  playMineFlash(gridX: number, gridY: number): void {
+    const { px, py } = this.gridToPixel(gridX, gridY);
+    const flash = this.scene.add.rectangle(
+      px + this.tileSize / 2,
+      py + this.tileSize / 2,
+      this.tileSize,
+      this.tileSize,
+      0xffd700,
+      0.6
+    );
+    flash.setDepth(10);
+
+    this.scene.tweens.add({
+      targets: flash,
+      scaleX: 1.3,
+      scaleY: 1.3,
+      alpha: 0,
+      duration: 300,
+      ease: "Power2",
+      onComplete: () => flash.destroy(),
+    });
+  }
+
   /** Play a brief scale-pulse animation on a tile */
   private playClaimAnimation(px: number, py: number): void {
     const flash = this.scene.add.rectangle(
