@@ -5,6 +5,7 @@ import {
   initializeGrid,
   assignStartingPositions,
   isAdjacent,
+  spawnNewGears,
 } from "../logic/GridManager";
 import {
   calculateTileClaimCost,
@@ -12,12 +13,17 @@ import {
   findBorders,
   resolveBorder,
 } from "../logic/ConflictEngine";
+import { generateAIName } from "../../src/utils/nameGenerator";
+import { sanitizeName } from "../logic/sanitize";
 
 export class GameRoom extends Room<GameState> {
   maxClients = 20;
   private gameLoopInterval: ReturnType<typeof this.clock.setInterval> | null = null;
   private hostId: string = "";
   private soloTeamTicks: number = 0;
+  private gearRespawnCountdown: number = -1;
+  private seriesScores: Map<string, number> = new Map();
+  private configuredTimeLimit: number = 300;
 
   /** Global map of shortCode → roomId for lookups */
   static shortCodeMap = new Map<string, string>();
@@ -201,8 +207,14 @@ export class GameRoom extends Room<GameState> {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
-      const adj = (data.adj || "").slice(0, 16);
-      const noun = (data.noun || "").slice(0, 16);
+      const adj = sanitizeName((data.adj || "").slice(0, 16));
+      const noun = sanitizeName((data.noun || "").slice(0, 16));
+
+      // Reject if either field is empty after sanitization
+      if (adj === "" || noun === "") {
+        client.send("nameRejected", { adj, noun, adjTaken: false, nounTaken: false });
+        return;
+      }
 
       // Check for duplicates among other players
       let adjTaken = false;
@@ -261,6 +273,66 @@ export class GameRoom extends Room<GameState> {
       if (taken) return;
 
       player.color = data.color;
+    });
+
+    // Host configures match settings (time limit, match format)
+    this.onMessage("setConfig", (client, data: { timeLimit?: number; matchFormat?: string }) => {
+      if (this.state.phase !== "waiting") return;
+      if (client.sessionId !== this.hostId) return;
+
+      const ALLOWED_TIMES = [120, 300, 420, 600];
+      if (data.timeLimit !== undefined && ALLOWED_TIMES.includes(data.timeLimit)) {
+        this.state.timeRemaining = data.timeLimit;
+      }
+
+      const ALLOWED_FORMATS = ["single", "bo3", "bo5"];
+      if (data.matchFormat !== undefined && ALLOWED_FORMATS.includes(data.matchFormat)) {
+        this.state.matchFormat = data.matchFormat;
+      }
+    });
+
+    // Host adds an AI player
+    this.onMessage("addAI", (client, data: { color: number }) => {
+      if (this.state.phase !== "waiting") return;
+      if (client.sessionId !== this.hostId) return;
+
+      // Count existing AI players
+      let aiCount = 0;
+      this.state.players.forEach((p) => { if (p.isAI) aiCount++; });
+      if (aiCount >= 4) return;
+
+      // Validate color is in allowed palette
+      if (!ALLOWED_COLORS.includes(data.color)) return;
+
+      // Check if color is already taken
+      let colorTaken = false;
+      this.state.players.forEach((p) => { if (p.color === data.color) colorTaken = true; });
+      if (colorTaken) return;
+
+      // Generate AI name avoiding duplicates
+      const taken = this.getTakenNames();
+      const aiName = generateAIName(taken.adjs, taken.nouns);
+
+      const aiId = `ai_${Date.now()}_${aiCount}`;
+      const player = new Player();
+      player.id = aiId;
+      player.isAI = true;
+      player.color = data.color;
+      player.nameAdj = aiName.adj;
+      player.nameNoun = aiName.noun;
+      player.teamName = `${aiName.adj} ${aiName.noun}`;
+      player.teamId = aiId;
+      player.isTeamLead = true;
+      this.state.players.set(aiId, player);
+    });
+
+    // Host removes an AI player
+    this.onMessage("removeAI", (client, data: { aiPlayerId: string }) => {
+      if (this.state.phase !== "waiting") return;
+      if (client.sessionId !== this.hostId) return;
+      const player = this.state.players.get(data.aiPlayerId);
+      if (!player || !player.isAI) return;
+      this.state.players.delete(data.aiPlayerId);
     });
   }
 
@@ -330,6 +402,16 @@ export class GameRoom extends Room<GameState> {
     console.log("GameRoom disposed");
   }
 
+  private getTakenNames(): { adjs: Set<string>; nouns: Set<string> } {
+    const adjs = new Set<string>();
+    const nouns = new Set<string>();
+    this.state.players.forEach((p) => {
+      if (p.nameAdj) adjs.add(p.nameAdj);
+      if (p.nameNoun) nouns.add(p.nameNoun);
+    });
+    return { adjs, nouns };
+  }
+
   private startGame() {
     const playerIds = Array.from(this.state.players.keys());
     const gridSize = calculateGridSize(playerIds.length);
@@ -382,6 +464,9 @@ export class GameRoom extends Room<GameState> {
     this.state.phase = "active";
     GameRoom.publicRooms.delete(this.state.shortCode);
 
+    // Save the configured time limit for series resets
+    this.configuredTimeLimit = this.state.timeRemaining;
+
     // Start the 1-second game loop
     this.gameLoopInterval = this.clock.setInterval(() => this.gameTick(), 1000);
 
@@ -400,12 +485,7 @@ export class GameRoom extends Room<GameState> {
     // Countdown timer
     this.state.timeRemaining -= 1;
     if (this.state.timeRemaining <= 0) {
-      this.state.phase = "ended";
-      if (this.gameLoopInterval) {
-        this.gameLoopInterval.clear();
-        this.gameLoopInterval = null;
-      }
-      console.log("Game ended — time's up");
+      this.handleRoundEnd();
       return;
     }
 
@@ -476,7 +556,34 @@ export class GameRoom extends Room<GameState> {
       }
     }
 
-    // 6. Check if only one team remains — end game after 2 consecutive seconds
+    // 6. Gear respawn check
+    const hasUnclaimedGear = this.state.tiles.some(
+      (t) => t.ownerId === "" && t.hasGear && t.gearScrap > 0
+    );
+
+    if (!hasUnclaimedGear && this.gearRespawnCountdown === -1) {
+      this.gearRespawnCountdown = 20;
+    } else if (this.gearRespawnCountdown > 0) {
+      this.gearRespawnCountdown -= 1;
+    } else if (this.gearRespawnCountdown === 0) {
+      // Count active players
+      let activeCount = 0;
+      this.state.players.forEach((p) => { if (!p.absorbed) activeCount++; });
+
+      const indices = spawnNewGears(
+        this.state.tiles.toArray(),
+        activeCount
+      );
+
+      for (const idx of indices) {
+        this.state.tiles[idx].hasGear = true;
+        this.state.tiles[idx].gearScrap = 50;
+      }
+
+      this.gearRespawnCountdown = -1;
+    }
+
+    // 7. Check if only one team remains — end game after 2 consecutive seconds
     const activeTeams = new Set<string>();
     this.state.players.forEach((player) => {
       if (!player.absorbed) {
@@ -487,15 +594,157 @@ export class GameRoom extends Room<GameState> {
     if (activeTeams.size <= 1 && this.state.players.size > 1) {
       this.soloTeamTicks++;
       if (this.soloTeamTicks >= 2) {
-        this.state.phase = "ended";
-        if (this.gameLoopInterval) {
-          this.gameLoopInterval.clear();
-          this.gameLoopInterval = null;
-        }
-        console.log("Game ended — only one team remaining");
+        this.handleRoundEnd();
       }
     } else {
       this.soloTeamTicks = 0;
     }
+  }
+
+  /**
+   * Determines the round winner (player with most tiles) and handles
+   * series logic for bo3/bo5 or ends the game for single matches.
+   */
+  private handleRoundEnd() {
+    // Stop the game loop
+    if (this.gameLoopInterval) {
+      this.gameLoopInterval.clear();
+      this.gameLoopInterval = null;
+    }
+
+    // Determine round winner: player with most tiles
+    let winnerId = "";
+    let maxTiles = 0;
+    this.state.players.forEach((player) => {
+      if (!player.absorbed && player.tileCount > maxTiles) {
+        maxTiles = player.tileCount;
+        winnerId = player.id;
+      }
+    });
+
+    // For single match, just end
+    if (this.state.matchFormat === "single") {
+      this.state.phase = "ended";
+      console.log("Game ended — single match");
+      return;
+    }
+
+    // Series match (bo3 or bo5): record round winner
+    if (winnerId) {
+      const currentScore = this.seriesScores.get(winnerId) || 0;
+      this.seriesScores.set(winnerId, currentScore + 1);
+    }
+
+    // Sync series scores to state for client
+    const scoresObj: Record<string, number> = {};
+    this.seriesScores.forEach((wins, playerId) => {
+      scoresObj[playerId] = wins;
+    });
+    this.state.seriesScoresJSON = JSON.stringify(scoresObj);
+
+    // Check win threshold
+    const winThreshold = this.state.matchFormat === "bo3" ? 2 : 3;
+    let seriesWinner = "";
+    this.seriesScores.forEach((wins, playerId) => {
+      if (wins >= winThreshold) {
+        seriesWinner = playerId;
+      }
+    });
+
+    if (seriesWinner) {
+      // Series is over
+      this.state.phase = "ended";
+      console.log(`Series ended — winner: ${seriesWinner}`);
+    } else {
+      // Schedule next round after 5 seconds
+      this.state.phase = "ended"; // temporarily ended between rounds
+      this.clock.setTimeout(() => {
+        this.resetForNextRound();
+      }, 5000);
+      console.log(`Round ${this.state.roundNumber} ended — next round in 5s`);
+    }
+  }
+
+  /**
+   * Re-initializes the grid, reassigns starting positions, resets player stats,
+   * increments roundNumber, and sets phase to "active" for the next round.
+   */
+  private resetForNextRound() {
+    this.state.roundNumber += 1;
+
+    const playerIds = Array.from(this.state.players.keys());
+    const gridSize = calculateGridSize(playerIds.length);
+
+    // Re-initialize the grid with neutral tiles
+    const tiles = initializeGrid(gridSize, gridSize);
+
+    // Reassign starting positions
+    const startingPositions = assignStartingPositions(
+      playerIds,
+      gridSize,
+      gridSize,
+      5
+    );
+
+    // Set starting tiles and player spawn positions
+    for (const [playerId, pos] of startingPositions) {
+      const tile = tiles.find((t) => t.x === pos.x && t.y === pos.y);
+      if (tile) {
+        tile.ownerId = playerId;
+        tile.isSpawn = true;
+      }
+      const player = this.state.players.get(playerId);
+      if (player) {
+        player.spawnX = pos.x;
+        player.spawnY = pos.y;
+      }
+    }
+
+    // Place gears on random neutral tiles (3 × player count)
+    const gearCount = playerIds.length * 3;
+    const neutralTiles = tiles.filter((t) => t.ownerId === "");
+    for (let i = neutralTiles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [neutralTiles[i], neutralTiles[j]] = [neutralTiles[j], neutralTiles[i]];
+    }
+    for (let i = 0; i < Math.min(gearCount, neutralTiles.length); i++) {
+      neutralTiles[i].hasGear = true;
+      neutralTiles[i].gearScrap = 50;
+    }
+
+    // Populate state tiles
+    this.state.tiles.clear();
+    for (const tile of tiles) {
+      this.state.tiles.push(tile);
+    }
+
+    this.state.gridWidth = gridSize;
+    this.state.gridHeight = gridSize;
+
+    // Reset player stats for the new round
+    this.state.players.forEach((player) => {
+      player.resources = 0;
+      player.attack = 1;
+      player.defense = 1;
+      player.tileCount = 1;
+      player.absorbed = false;
+      player.direction = "";
+      player.isTeamLead = true;
+      player.teamId = player.id;
+      player.teamName = `${player.nameAdj} ${player.nameNoun}`;
+    });
+
+    // Reset internal counters
+    this.soloTeamTicks = 0;
+    this.gearRespawnCountdown = -1;
+
+    // Reset timer to configured time limit
+    this.state.timeRemaining = this.configuredTimeLimit;
+
+    // Set phase to active and restart game loop
+    this.state.phase = "active";
+    this.gameLoopInterval = this.clock.setInterval(() => this.gameTick(), 1000);
+
+    console.log(`Round ${this.state.roundNumber} started: ${gridSize}x${gridSize} grid`);
   }
 }

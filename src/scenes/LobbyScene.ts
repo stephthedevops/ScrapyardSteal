@@ -32,9 +32,12 @@ export class LobbyScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private playerListText!: Phaser.GameObjects.Text;
   private startButton: Phaser.GameObjects.Container | null = null;
+  private configButton: Phaser.GameObjects.Container | null = null;
+  private configPanelObjects: Phaser.GameObjects.GameObject[] = [];
   private colorSwatches: Phaser.GameObjects.Container[] = [];
   private selectedColorIndex: number = -1;
   private roomCodeDisplay!: Phaser.GameObjects.Text;
+  private errorPopupShown = false;
 
   constructor() {
     super({ key: "LobbyScene" });
@@ -91,6 +94,13 @@ export class LobbyScene extends Phaser.Scene {
         this.setColor(AMBER);
       });
 
+    // Task 9.4: "reroll" label next to ♻ button
+    this.add.text(330, 155, "reroll", {
+      fontSize: "11px",
+      color: AMBER,
+      fontFamily: FONT,
+    }).setOrigin(0, 0.5);
+
     this.playerListText = this.add
       .text(400, 175, "", {
         fontSize: "13px",
@@ -115,7 +125,7 @@ export class LobbyScene extends Phaser.Scene {
 
     // Room code display (shown after connecting)
     this.roomCodeDisplay = this.add
-      .text(370, 560, "", {
+      .text(370, 540, "", {
         fontSize: "14px",
         color: GOLD,
         fontFamily: FONT,
@@ -124,7 +134,7 @@ export class LobbyScene extends Phaser.Scene {
 
     // Copy button next to room code
     const copyBtn = this.add
-      .text(470, 560, "[COPY]", {
+      .text(470, 540, "[COPY]", {
         fontSize: "14px",
         color: AMBER,
         fontFamily: FONT,
@@ -145,6 +155,9 @@ export class LobbyScene extends Phaser.Scene {
         });
       }
     });
+
+    // Task 9.3: BACK button — visible to all players
+    this.createBackButton();
 
     // Connect based on mode
     const mode = (this.scene.settings.data as any)?.mode || "create";
@@ -191,10 +204,7 @@ export class LobbyScene extends Phaser.Scene {
       });
     })
       .catch((err: Error) => {
-        this.statusText.setText("Failed to connect: " + err.message);
-        this.time.delayedCall(3000, () => {
-          this.scene.start("MenuScene");
-        });
+        this.showErrorPopup("Connection failed: " + err.message);
       });
   }
 
@@ -358,6 +368,13 @@ export class LobbyScene extends Phaser.Scene {
       });
     });
 
+    // Task 9.6: Listen for mid-lobby disconnects
+    this.room.onLeave((code: number) => {
+      if (!this.transitioned) {
+        this.showErrorPopup("Disconnected from server");
+      }
+    });
+
     this.room.onStateChange((state: any) => {
       if (this.transitioned) return;
 
@@ -376,7 +393,8 @@ export class LobbyScene extends Phaser.Scene {
       const players: string[] = [];
       const takenColors = new Set<number>();
       state.players.forEach((player: any, key: string) => {
-        const displayName = player.teamName || `${player.nameAdj} ${player.nameNoun}`.trim() || key.slice(0, 10);
+        const baseName = player.teamName || `${player.nameAdj} ${player.nameNoun}`.trim() || key.slice(0, 10);
+        const displayName = player.isAI ? `🤖 ${baseName}` : baseName;
         const host = player.isHost ? " (HOST)" : "";
         const you = key === this.localSessionId ? " ← you" : "";
         const colorName =
@@ -407,7 +425,7 @@ export class LobbyScene extends Phaser.Scene {
         xMark.setAlpha(isTaken ? 1 : 0);
       });
 
-      // Show/hide start button for host
+      // Show/hide start button and config button for host
       const isHost = state.hostId === this.localSessionId;
       if (isHost && !this.startButton) {
         this.createStartButton();
@@ -415,6 +433,13 @@ export class LobbyScene extends Phaser.Scene {
       if (!isHost && this.startButton) {
         this.startButton.destroy();
         this.startButton = null;
+      }
+      if (isHost && state.phase === "waiting" && !this.configButton) {
+        this.createConfigButton();
+      }
+      if ((!isHost || state.phase !== "waiting") && this.configButton) {
+        this.configButton.destroy();
+        this.configButton = null;
       }
 
       // Update public toggle label
@@ -480,5 +505,340 @@ export class LobbyScene extends Phaser.Scene {
     pubContainer.setSize(200, 36);
     pubContainer.setDepth(HUD_DEPTH);
     pubContainer.setName("publicToggle");
+  }
+
+  /** Task 9.1: Create ⚙ CONFIG button next to START */
+  private createConfigButton(): void {
+    const bg = this.add
+      .rectangle(0, 0, 140, 40, BUTTON_BG, 0.85)
+      .setInteractive({ useHandCursor: true });
+
+    const label = this.add
+      .text(0, 0, "⚙ CONFIG", {
+        fontSize: "16px",
+        color: AMBER,
+        fontFamily: FONT,
+      })
+      .setOrigin(0.5);
+
+    bg.on("pointerover", () => bg.setFillStyle(BUTTON_HOVER, 0.9));
+    bg.on("pointerout", () => bg.setFillStyle(BUTTON_BG, 0.85));
+    bg.on("pointerdown", () => {
+      this.openConfigPanel();
+    });
+
+    this.configButton = this.add.container(560, 500, [bg, label]);
+    this.configButton.setSize(140, 40);
+    this.configButton.setDepth(HUD_DEPTH);
+  }
+
+  /** Task 9.3: Create BACK button at bottom of lobby */
+  private createBackButton(): void {
+    const bg = this.add
+      .rectangle(0, 0, 160, 36, BUTTON_BG, 0.85)
+      .setInteractive({ useHandCursor: true });
+
+    const label = this.add
+      .text(0, 0, "BACK", {
+        fontSize: "14px",
+        color: AMBER,
+        fontFamily: FONT,
+      })
+      .setOrigin(0.5);
+
+    bg.on("pointerover", () => bg.setFillStyle(BUTTON_HOVER, 0.9));
+    bg.on("pointerout", () => bg.setFillStyle(BUTTON_BG, 0.85));
+    bg.on("pointerdown", () => {
+      this.room?.leave();
+      this.transitioned = true;
+      this.scene.start("MenuScene");
+    });
+
+    const container = this.add.container(400, 575, [bg, label]);
+    container.setSize(160, 36);
+    container.setDepth(HUD_DEPTH);
+  }
+
+  /** Task 9.6: Show styled error popup overlay */
+  private showErrorPopup(message: string): void {
+    if (this.errorPopupShown) return;
+    this.errorPopupShown = true;
+
+    const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.7)
+      .setDepth(200).setInteractive();
+    const box = this.add.rectangle(400, 280, 360, 180, 0x1a1a2e, 0.95)
+      .setDepth(201).setStrokeStyle(2, 0x3a3a2a);
+    this.add.text(400, 240, "CONNECTION ERROR", {
+      fontSize: "16px",
+      color: GOLD,
+      fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(202);
+    this.add.text(400, 275, message, {
+      fontSize: "12px",
+      color: AMBER,
+      fontFamily: FONT,
+      wordWrap: { width: 320 },
+      align: "center",
+    }).setOrigin(0.5).setDepth(202);
+
+    // BACK TO MENU button
+    const btnBg = this.add
+      .rectangle(400, 330, 200, 40, BUTTON_BG, 0.85)
+      .setDepth(202)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(400, 330, "BACK TO MENU", {
+      fontSize: "14px",
+      color: GOLD,
+      fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(203);
+
+    btnBg.on("pointerover", () => btnBg.setFillStyle(BUTTON_HOVER, 0.9));
+    btnBg.on("pointerout", () => btnBg.setFillStyle(BUTTON_BG, 0.85));
+    btnBg.on("pointerdown", () => {
+      this.transitioned = true;
+      this.scene.start("MenuScene");
+    });
+
+    // Auto-transition after 5 seconds
+    this.time.delayedCall(5000, () => {
+      if (!this.transitioned) {
+        this.transitioned = true;
+        this.scene.start("MenuScene");
+      }
+    });
+  }
+
+  /** Task 9.2: Open the server config panel overlay */
+  private openConfigPanel(): void {
+    // If panel already open, do nothing
+    if (this.configPanelObjects.length > 0) return;
+
+    const PANEL_DEPTH = 150;
+    let selectedTime = this.room?.state?.timeRemaining ?? 300;
+    let selectedFormat = this.room?.state?.matchFormat ?? "single";
+
+    // Dark overlay
+    const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.7)
+      .setDepth(PANEL_DEPTH).setInteractive();
+    this.configPanelObjects.push(overlay);
+
+    // Panel box
+    const panelBox = this.add.rectangle(400, 300, 500, 440, 0x1a1a2e, 0.95)
+      .setDepth(PANEL_DEPTH + 1).setStrokeStyle(2, 0x3a3a2a);
+    this.configPanelObjects.push(panelBox);
+
+    // Title
+    const title = this.add.text(400, 110, "⚙ SERVER CONFIG", {
+      fontSize: "18px", color: GOLD, fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
+    this.configPanelObjects.push(title);
+
+    // --- TIME LIMIT SECTION ---
+    const timeLabel = this.add.text(400, 150, "TIME LIMIT", {
+      fontSize: "14px", color: GOLD, fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
+    this.configPanelObjects.push(timeLabel);
+
+    const TIME_OPTIONS = [
+      { label: "2 min", value: 120 },
+      { label: "5 min", value: 300 },
+      { label: "7 min", value: 420 },
+      { label: "10 min", value: 600 },
+    ];
+
+    const timeButtons: Phaser.GameObjects.Rectangle[] = [];
+    const timeLabels: Phaser.GameObjects.Text[] = [];
+
+    TIME_OPTIONS.forEach((opt, i) => {
+      const x = 250 + i * 100;
+      const bg = this.add.rectangle(x, 185, 80, 32, BUTTON_BG, 0.85)
+        .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
+      const lbl = this.add.text(x, 185, opt.label, {
+        fontSize: "13px", color: AMBER, fontFamily: FONT,
+      }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
+
+      if (opt.value === selectedTime) {
+        bg.setFillStyle(0x5a8a3a, 1);
+        lbl.setColor(GOLD);
+      }
+
+      bg.on("pointerdown", () => {
+        selectedTime = opt.value;
+        this.networkManager.sendSetConfig({ timeLimit: opt.value });
+        // Update highlights
+        timeButtons.forEach((b, j) => {
+          if (j === i) {
+            b.setFillStyle(0x5a8a3a, 1);
+            timeLabels[j].setColor(GOLD);
+          } else {
+            b.setFillStyle(BUTTON_BG, 0.85);
+            timeLabels[j].setColor(AMBER);
+          }
+        });
+      });
+
+      timeButtons.push(bg);
+      timeLabels.push(lbl);
+      this.configPanelObjects.push(bg, lbl);
+    });
+
+    // --- MATCH FORMAT SECTION ---
+    const formatLabel = this.add.text(400, 225, "MATCH FORMAT", {
+      fontSize: "14px", color: GOLD, fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
+    this.configPanelObjects.push(formatLabel);
+
+    const FORMAT_OPTIONS = [
+      { label: "Single Match", value: "single" },
+      { label: "Best of 3", value: "bo3" },
+      { label: "Best of 5", value: "bo5" },
+    ];
+
+    const formatButtons: Phaser.GameObjects.Rectangle[] = [];
+    const formatLabels: Phaser.GameObjects.Text[] = [];
+
+    FORMAT_OPTIONS.forEach((opt, i) => {
+      const x = 270 + i * 130;
+      const bg = this.add.rectangle(x, 260, 110, 32, BUTTON_BG, 0.85)
+        .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
+      const lbl = this.add.text(x, 260, opt.label, {
+        fontSize: "12px", color: AMBER, fontFamily: FONT,
+      }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
+
+      if (opt.value === selectedFormat) {
+        bg.setFillStyle(0x5a8a3a, 1);
+        lbl.setColor(GOLD);
+      }
+
+      bg.on("pointerdown", () => {
+        selectedFormat = opt.value;
+        this.networkManager.sendSetConfig({ matchFormat: opt.value });
+        formatButtons.forEach((b, j) => {
+          if (j === i) {
+            b.setFillStyle(0x5a8a3a, 1);
+            formatLabels[j].setColor(GOLD);
+          } else {
+            b.setFillStyle(BUTTON_BG, 0.85);
+            formatLabels[j].setColor(AMBER);
+          }
+        });
+      });
+
+      formatButtons.push(bg);
+      formatLabels.push(lbl);
+      this.configPanelObjects.push(bg, lbl);
+    });
+
+    // --- AI PLAYERS SECTION ---
+    const aiLabel = this.add.text(400, 305, "AI PLAYERS", {
+      fontSize: "14px", color: GOLD, fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
+    this.configPanelObjects.push(aiLabel);
+
+    // Container area for AI entries — we'll track them and rebuild on add/remove
+    const aiEntryObjects: Phaser.GameObjects.GameObject[] = [];
+
+    const rebuildAIEntries = () => {
+      // Destroy old AI entry objects
+      aiEntryObjects.forEach((obj) => obj.destroy());
+      aiEntryObjects.length = 0;
+
+      if (!this.room?.state) return;
+
+      const aiPlayers: { id: string; name: string; color: number }[] = [];
+      this.room.state.players.forEach((p: any, key: string) => {
+        if (p.isAI) {
+          aiPlayers.push({
+            id: key,
+            name: `${p.nameAdj} ${p.nameNoun}`.trim(),
+            color: p.color,
+          });
+        }
+      });
+
+      const countLabel = this.add.text(400, 330, `${aiPlayers.length} / 4`, {
+        fontSize: "12px", color: AMBER, fontFamily: FONT,
+      }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
+      aiEntryObjects.push(countLabel);
+
+      // Show each AI entry
+      aiPlayers.forEach((ai, idx) => {
+        const y = 355 + idx * 28;
+        const icon = this.add.text(220, y, "🤖", {
+          fontSize: "14px", fontFamily: FONT,
+        }).setDepth(PANEL_DEPTH + 2);
+        const colorSwatch = this.add.rectangle(250, y + 2, 16, 16, ai.color)
+          .setDepth(PANEL_DEPTH + 2);
+        const nameText = this.add.text(265, y, ai.name, {
+          fontSize: "12px", color: AMBER, fontFamily: FONT,
+        }).setDepth(PANEL_DEPTH + 2);
+        aiEntryObjects.push(icon, colorSwatch, nameText);
+      });
+
+      // + button
+      const plusBg = this.add.rectangle(350, 330, 32, 28, BUTTON_BG, 0.85)
+        .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
+      const plusLbl = this.add.text(350, 330, "+", {
+        fontSize: "16px", color: AMBER, fontFamily: FONT,
+      }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
+      aiEntryObjects.push(plusBg, plusLbl);
+
+      plusBg.on("pointerdown", () => {
+        if (aiPlayers.length >= 4) return;
+        // Find first available color
+        const takenColors = new Set<number>();
+        this.room.state.players.forEach((p: any) => {
+          if (p.color >= 0) takenColors.add(p.color);
+        });
+        const availableColor = COLOR_OPTIONS.find((c) => !takenColors.has(c.hex));
+        if (!availableColor) return;
+        this.networkManager.sendAddAI(availableColor.hex);
+        // Rebuild after a short delay to let state sync
+        this.time.delayedCall(300, rebuildAIEntries);
+      });
+
+      // − button
+      const minusBg = this.add.rectangle(450, 330, 32, 28, BUTTON_BG, 0.85)
+        .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
+      const minusLbl = this.add.text(450, 330, "−", {
+        fontSize: "16px", color: AMBER, fontFamily: FONT,
+      }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
+      aiEntryObjects.push(minusBg, minusLbl);
+
+      minusBg.on("pointerdown", () => {
+        if (aiPlayers.length === 0) return;
+        const lastAI = aiPlayers[aiPlayers.length - 1];
+        this.networkManager.sendRemoveAI(lastAI.id);
+        this.time.delayedCall(300, rebuildAIEntries);
+      });
+    };
+
+    rebuildAIEntries();
+
+    // Store AI entry objects in the panel objects for cleanup
+    // We'll wrap rebuildAIEntries cleanup into closeConfigPanel
+    const aiCleanup = { entries: aiEntryObjects };
+
+    // --- DONE BUTTON ---
+    const doneBg = this.add.rectangle(400, 480, 140, 40, 0x3a6a2a, 0.9)
+      .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
+    const doneLbl = this.add.text(400, 480, "DONE", {
+      fontSize: "16px", color: GOLD, fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
+    this.configPanelObjects.push(doneBg, doneLbl);
+
+    doneBg.on("pointerover", () => doneBg.setFillStyle(0x4a8a3a, 1));
+    doneBg.on("pointerout", () => doneBg.setFillStyle(0x3a6a2a, 0.9));
+    doneBg.on("pointerdown", () => {
+      this.closeConfigPanel(aiCleanup.entries);
+    });
+  }
+
+  /** Close the config panel and destroy all its objects */
+  private closeConfigPanel(aiEntryObjects: Phaser.GameObjects.GameObject[]): void {
+    this.configPanelObjects.forEach((obj) => obj.destroy());
+    this.configPanelObjects = [];
+    aiEntryObjects.forEach((obj) => obj.destroy());
+    aiEntryObjects.length = 0;
   }
 }

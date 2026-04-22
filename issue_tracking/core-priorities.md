@@ -34,5 +34,5 @@ Must-do items before jam submission on April 26th.
 ## From Code Audit — Security & Validation
 
 - [ ] Rate limiting on tile claims, upgrades, and gear mining (prevent click spam)
-- [ ] Sanitize player names before broadcast (strip control chars)
-- [ ] Gear respawn — when no unclaimed gears remain, spawn new gears (count = player count) on unclaimed tiles every 20 seconds
+- [ ] Sanitize player names before broadcast (strip control chars) @steph
+- [ ] Gear respawn — when no unclaimed gears remain, spawn new gears (count = player count) on unclaimed tiles every 20 seconds @steph

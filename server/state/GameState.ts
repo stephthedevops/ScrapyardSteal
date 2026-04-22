@@ -26,6 +26,7 @@ export class Player extends Schema {
   @type("string") direction: string = "";
   @type("number") spawnX: number = -1;
   @type("number") spawnY: number = -1;
+  @type("boolean") isAI: boolean = false;
 }
 
 export class GameState extends Schema {
@@ -38,4 +39,7 @@ export class GameState extends Schema {
   @type("string") shortCode: string = "";
   @type("number") timeRemaining: number = 300;
   @type("boolean") isPublic: boolean = false;
+  @type("string") matchFormat: string = "single";
+  @type("number") roundNumber: number = 1;
+  @type("string") seriesScoresJSON: string = "{}";
 }

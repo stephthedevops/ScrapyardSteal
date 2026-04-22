@@ -10,12 +10,12 @@ Tracked issues that need fixing.
 
 - [ ] Border conflict can transfer tiles from an already-absorbed player in the same tick
 - [ ] Absorbed players can still receive resource income for one tick after absorption
-- [ ] Gear mining doesn't animate or give visual feedback on click
+- [ ] Gear mining doesn't animate or give visual feedback on click @steph
 - [ ] Claiming a gear tile and mining it in the same click may double-deduct resources
 
 ## UI
 
-- [ ] Color picker X marks don't update if a player disconnects and frees their color
+- [ ] Color picker X marks don't update if a player disconnects and frees their color @steph
 - [ ] Reroll button position is fixed and may overlap player list with many players
 
 ## Networking

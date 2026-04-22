@@ -94,3 +94,36 @@ export function assignStartingPositions(
 export function calculateGridSize(playerCount: number): number {
   return Math.ceil(30 * Math.sqrt(playerCount / 10));
 }
+
+/**
+ * Pure function: selects random unclaimed, non-spawn tiles without existing gears
+ * to become new gear tiles. Returns the indices into the tiles array.
+ *
+ * @param tiles - The flat array of Tile objects representing the grid
+ * @param activePlayerCount - Number of active (non-absorbed) players; determines how many gears to spawn
+ * @returns Array of tile indices to convert to gears
+ */
+export function spawnNewGears(
+  tiles: { ownerId: string; isSpawn: boolean; hasGear: boolean }[],
+  activePlayerCount: number
+): number[] {
+  // Find all valid candidate indices: unclaimed, not spawn, no existing gear
+  const candidates: number[] = [];
+  for (let i = 0; i < tiles.length; i++) {
+    const t = tiles[i];
+    if (t.ownerId === "" && !t.isSpawn && !t.hasGear) {
+      candidates.push(i);
+    }
+  }
+
+  if (candidates.length === 0) return [];
+
+  // Shuffle candidates using Fisher-Yates and pick up to activePlayerCount
+  const count = Math.min(activePlayerCount, candidates.length);
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+
+  return candidates.slice(0, count);
+}
