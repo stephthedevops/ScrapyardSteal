@@ -441,8 +441,8 @@ export class GameRoom extends Room<GameState> {
       }
     }
 
-    // Place gears on random neutral tiles (3 × player count)
-    const gearCount = playerIds.length * 3;
+    // Place initial gears (1 per player)
+    const gearCount = playerIds.length;
     const neutralTiles = tiles.filter((t) => t.ownerId === "");
     for (let i = neutralTiles.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -556,34 +556,80 @@ export class GameRoom extends Room<GameState> {
       }
     }
 
-    // 6. Gear respawn check
-    const hasUnclaimedGear = this.state.tiles.some(
-      (t) => t.ownerId === "" && t.hasGear && t.gearScrap > 0
-    );
+    // 5b. AI player actions — simulate clicking each tick
+    this.state.players.forEach((player) => {
+      if (!player.isAI) return;
 
-    if (!hasUnclaimedGear && this.gearRespawnCountdown === -1) {
-      this.gearRespawnCountdown = 20;
-    } else if (this.gearRespawnCountdown > 0) {
-      this.gearRespawnCountdown -= 1;
-    } else if (this.gearRespawnCountdown === 0) {
-      // Count active players
-      let activeCount = 0;
-      this.state.players.forEach((p) => { if (!p.absorbed) activeCount++; });
+      // Determine the effective leader — if absorbed, act for team leader
+      let leader = player;
+      if (player.absorbed && player.teamId) {
+        const teamLeader = this.state.players.get(player.teamId);
+        if (!teamLeader || teamLeader.absorbed) return;
+        leader = teamLeader;
+      }
 
-      const indices = spawnNewGears(
-        this.state.tiles.toArray(),
-        activeCount
-      );
+      // Gather leader's owned tiles
+      const ownedTiles = this.state.tiles.filter((t) => t.ownerId === leader.id);
 
-      for (const idx of indices) {
-        const tile = this.state.tiles[idx];
-        if (tile) {
-          tile.hasGear = true;
-          tile.gearScrap = 50;
+      // Try to mine a gear first (on owned or unclaimed tiles adjacent to territory)
+      for (const t of this.state.tiles) {
+        if (!t.hasGear || t.gearScrap <= 0) continue;
+        if (t.ownerId !== "" && t.ownerId !== leader.id) continue;
+        if (t.ownerId === leader.id || isAdjacent(t.x, t.y, ownedTiles)) {
+          let factoryCount = 0;
+          ownedTiles.forEach((ot) => { if (ot.isSpawn) factoryCount++; });
+          const multiplier = Math.max(1, factoryCount);
+          const extracted = Math.min(leader.attack * multiplier, t.gearScrap);
+          t.gearScrap -= extracted;
+          leader.resources += extracted;
+          if (t.gearScrap <= 0) t.hasGear = false;
+          break; // one mine action per tick
         }
       }
 
-      this.gearRespawnCountdown = -1;
+      // Absorbed AI only mines — doesn't claim or upgrade (leader handles that)
+      if (player.absorbed) return;
+
+      // Try to claim an adjacent neutral tile
+      const claimable: Tile[] = [];
+      for (const t of this.state.tiles) {
+        if (t.ownerId !== "") continue;
+        if (isAdjacent(t.x, t.y, ownedTiles)) {
+          claimable.push(t);
+        }
+      }
+
+      if (claimable.length > 0) {
+        const gearTile = claimable.find((t) => t.hasGear && t.gearScrap > 0);
+        const target = gearTile || claimable[Math.floor(Math.random() * claimable.length)];
+        const cost = calculateTileClaimCost(leader.tileCount);
+        if (leader.resources >= cost) {
+          leader.resources -= cost;
+          target.ownerId = leader.id;
+          leader.tileCount += 1;
+        }
+      }
+
+      // Try to upgrade (prefer attack, then defense)
+      const atkCost = calculateUpgradeCost(leader.attack);
+      const defCost = calculateUpgradeCost(leader.defense);
+      if (leader.resources >= atkCost && leader.attack < 50) {
+        leader.resources -= atkCost;
+        leader.attack += 1;
+      } else if (leader.resources >= defCost && leader.defense < 50) {
+        leader.resources -= defCost;
+        leader.defense += 1;
+      }
+    });
+
+    // 6. Gear spawning — 1 new gear every second on a random unclaimed tile
+    const gearIndices = spawnNewGears(this.state.tiles.toArray(), 1);
+    for (const idx of gearIndices) {
+      const tile = this.state.tiles[idx];
+      if (tile) {
+        tile.hasGear = true;
+        tile.gearScrap = 50;
+      }
     }
 
     // 7. Check if only one team remains — end game after 2 consecutive seconds
@@ -703,8 +749,8 @@ export class GameRoom extends Room<GameState> {
       }
     }
 
-    // Place gears on random neutral tiles (3 × player count)
-    const gearCount = playerIds.length * 3;
+    // Place initial gears (1 per player)
+    const gearCount = playerIds.length;
     const neutralTiles = tiles.filter((t) => t.ownerId === "");
     for (let i = neutralTiles.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));

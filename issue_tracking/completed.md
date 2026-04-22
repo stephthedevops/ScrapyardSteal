@@ -94,3 +94,7 @@ Items that have been implemented and verified.
 - [x] ecosystem.config.js + @colyseus/tools integration
 - [x] GitHub Pages site with itch.io embed
 - [x] build:prod script with auto-zip
+
+## v0.5.1 Additions
+
+- [x] Visual feedback (graphic/animation) whenever scrap is generated — clicks or auto

@@ -89,6 +89,7 @@ export class GridRenderer {
   private spawnIcons: Phaser.GameObjects.Text[] = [];
   private gearTiles: Set<string> = new Set();
   private gearIcons: Phaser.GameObjects.Text[] = [];
+  private costLabels: Phaser.GameObjects.Text[] = [];
 
   /** Mark a tile as having a gear decoration */
   setGearTile(x: number, y: number): void {
@@ -204,7 +205,8 @@ export class GridRenderer {
    */
   highlightClaimable(
     tiles: { x: number; y: number }[],
-    direction: string
+    direction: string,
+    tileCost?: number
   ): void {
     for (const tile of tiles) {
       const { px, py } = this.gridToPixel(tile.x, tile.y);
@@ -213,6 +215,21 @@ export class GridRenderer {
 
       this.graphics.lineStyle(2, color, isBright ? 1 : 0.6);
       this.graphics.strokeRect(px + 1, py + 1, this.tileSize - 2, this.tileSize - 2);
+
+      // Show cost on claimable tiles (only if tile is large enough)
+      if (tileCost !== undefined && this.tileSize >= 16) {
+        const fontSize = Math.max(7, Math.floor(this.tileSize * 0.3));
+        const costText = this.scene.add
+          .text(px + this.tileSize / 2, py + this.tileSize / 2, `${tileCost}`, {
+            fontSize: `${fontSize}px`,
+            color: "#ffcc44",
+            fontFamily: "monospace",
+          })
+          .setOrigin(0.5)
+          .setAlpha(0.7)
+          .setDepth(6);
+        this.costLabels.push(costText);
+      }
     }
   }
 
@@ -299,5 +316,7 @@ export class GridRenderer {
     this.spawnIcons = [];
     this.gearIcons.forEach((icon) => icon.destroy());
     this.gearIcons = [];
+    this.costLabels.forEach((label) => label.destroy());
+    this.costLabels = [];
   }
 }
