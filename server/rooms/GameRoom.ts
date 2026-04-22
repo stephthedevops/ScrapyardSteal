@@ -13,7 +13,7 @@ import {
   findBorders,
   resolveBorder,
 } from "../logic/ConflictEngine";
-import { generateAIName } from "../../src/utils/nameGenerator";
+import { generateAIName } from "../logic/aiNames";
 import { sanitizeName } from "../logic/sanitize";
 
 export class GameRoom extends Room<GameState> {
@@ -576,8 +576,11 @@ export class GameRoom extends Room<GameState> {
       );
 
       for (const idx of indices) {
-        this.state.tiles[idx].hasGear = true;
-        this.state.tiles[idx].gearScrap = 50;
+        const tile = this.state.tiles[idx];
+        if (tile) {
+          tile.hasGear = true;
+          tile.gearScrap = 50;
+        }
       }
 
       this.gearRespawnCountdown = -1;
