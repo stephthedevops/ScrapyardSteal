@@ -42,4 +42,5 @@ export class GameState extends Schema {
   @type("string") matchFormat: string = "single";
   @type("number") roundNumber: number = 1;
   @type("string") seriesScoresJSON: string = "{}";
+  @type("number") gearScrapSupply: number = 1000;
 }

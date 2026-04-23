@@ -89,7 +89,7 @@ export class NetworkManager {
     this.room?.send("setName", { adj, noun });
   }
 
-  sendSetConfig(config: { timeLimit?: number; matchFormat?: string }): void {
+  sendSetConfig(config: { timeLimit?: number; matchFormat?: string; gearScrapSupply?: number }): void {
     this.room?.send("setConfig", config);
   }
 

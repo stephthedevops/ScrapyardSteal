@@ -606,7 +606,7 @@ export class LobbyScene extends Phaser.Scene {
     this.configPanelObjects.push(overlay);
 
     // Panel box
-    const panelBox = this.add.rectangle(400, 300, 500, 440, 0x1a1a2e, 0.95)
+    const panelBox = this.add.rectangle(400, 330, 500, 520, 0x1a1a2e, 0.95)
       .setDepth(PANEL_DEPTH + 1).setStrokeStyle(2, 0x3a3a2a);
     this.configPanelObjects.push(panelBox);
 
@@ -712,8 +712,53 @@ export class LobbyScene extends Phaser.Scene {
       this.configPanelObjects.push(bg, lbl);
     });
 
+    // --- GEAR SCRAP SECTION ---
+    let selectedScrap = this.room?.state?.gearScrapSupply ?? 1000;
+
+    const scrapLabel = this.add.text(400, 300, "GEAR SCRAP", {
+      fontSize: "14px", color: GOLD, fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
+    this.configPanelObjects.push(scrapLabel);
+
+    const SCRAP_OPTIONS = [50, 100, 500, 1000, 2000];
+
+    const scrapButtons: Phaser.GameObjects.Rectangle[] = [];
+    const scrapLabels: Phaser.GameObjects.Text[] = [];
+
+    SCRAP_OPTIONS.forEach((val, i) => {
+      const x = 220 + i * 90;
+      const bg = this.add.rectangle(x, 335, 72, 32, BUTTON_BG, 0.85)
+        .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
+      const lbl = this.add.text(x, 335, `${val}`, {
+        fontSize: "13px", color: AMBER, fontFamily: FONT,
+      }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
+
+      if (val === selectedScrap) {
+        bg.setFillStyle(0x5a8a3a, 1);
+        lbl.setColor(GOLD);
+      }
+
+      bg.on("pointerdown", () => {
+        selectedScrap = val;
+        this.networkManager.sendSetConfig({ gearScrapSupply: val });
+        scrapButtons.forEach((b, j) => {
+          if (j === i) {
+            b.setFillStyle(0x5a8a3a, 1);
+            scrapLabels[j].setColor(GOLD);
+          } else {
+            b.setFillStyle(BUTTON_BG, 0.85);
+            scrapLabels[j].setColor(AMBER);
+          }
+        });
+      });
+
+      scrapButtons.push(bg);
+      scrapLabels.push(lbl);
+      this.configPanelObjects.push(bg, lbl);
+    });
+
     // --- AI PLAYERS SECTION ---
-    const aiLabel = this.add.text(400, 305, "AI PLAYERS", {
+    const aiLabel = this.add.text(400, 380, "AI PLAYERS", {
       fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
     this.configPanelObjects.push(aiLabel);
@@ -739,14 +784,14 @@ export class LobbyScene extends Phaser.Scene {
         }
       });
 
-      const countLabel = this.add.text(400, 330, `${aiPlayers.length} / 4`, {
+      const countLabel = this.add.text(400, 405, `${aiPlayers.length} / 4`, {
         fontSize: "12px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
       aiEntryObjects.push(countLabel);
 
       // Show each AI entry
       aiPlayers.forEach((ai, idx) => {
-        const y = 355 + idx * 28;
+        const y = 430 + idx * 28;
         const icon = this.add.text(220, y, "🤖", {
           fontSize: "14px", fontFamily: FONT,
         }).setDepth(PANEL_DEPTH + 2);
@@ -759,9 +804,9 @@ export class LobbyScene extends Phaser.Scene {
       });
 
       // + button
-      const plusBg = this.add.rectangle(350, 330, 32, 28, BUTTON_BG, 0.85)
+      const plusBg = this.add.rectangle(350, 405, 32, 28, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const plusLbl = this.add.text(350, 330, "+", {
+      const plusLbl = this.add.text(350, 405, "+", {
         fontSize: "16px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
       aiEntryObjects.push(plusBg, plusLbl);
@@ -781,9 +826,9 @@ export class LobbyScene extends Phaser.Scene {
       });
 
       // − button
-      const minusBg = this.add.rectangle(450, 330, 32, 28, BUTTON_BG, 0.85)
+      const minusBg = this.add.rectangle(450, 405, 32, 28, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const minusLbl = this.add.text(450, 330, "−", {
+      const minusLbl = this.add.text(450, 405, "−", {
         fontSize: "16px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
       aiEntryObjects.push(minusBg, minusLbl);
@@ -803,9 +848,9 @@ export class LobbyScene extends Phaser.Scene {
     const aiCleanup = { entries: aiEntryObjects };
 
     // --- DONE BUTTON ---
-    const doneBg = this.add.rectangle(400, 480, 140, 40, 0x3a6a2a, 0.9)
+    const doneBg = this.add.rectangle(400, 555, 140, 40, 0x3a6a2a, 0.9)
       .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-    const doneLbl = this.add.text(400, 480, "DONE", {
+    const doneLbl = this.add.text(400, 555, "DONE", {
       fontSize: "16px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
     this.configPanelObjects.push(doneBg, doneLbl);

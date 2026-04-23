@@ -276,7 +276,7 @@ export class GameRoom extends Room<GameState> {
     });
 
     // Host configures match settings (time limit, match format)
-    this.onMessage("setConfig", (client, data: { timeLimit?: number; matchFormat?: string }) => {
+    this.onMessage("setConfig", (client, data: { timeLimit?: number; matchFormat?: string; gearScrapSupply?: number }) => {
       if (this.state.phase !== "waiting") return;
       if (client.sessionId !== this.hostId) return;
 
@@ -288,6 +288,11 @@ export class GameRoom extends Room<GameState> {
       const ALLOWED_FORMATS = ["single", "bo3", "bo5"];
       if (data.matchFormat !== undefined && ALLOWED_FORMATS.includes(data.matchFormat)) {
         this.state.matchFormat = data.matchFormat;
+      }
+
+      const ALLOWED_SCRAP_VALUES = [50, 100, 500, 1000, 2000];
+      if (data.gearScrapSupply !== undefined && ALLOWED_SCRAP_VALUES.includes(data.gearScrapSupply)) {
+        this.state.gearScrapSupply = data.gearScrapSupply;
       }
     });
 
@@ -450,7 +455,7 @@ export class GameRoom extends Room<GameState> {
     }
     for (let i = 0; i < Math.min(gearCount, neutralTiles.length); i++) {
       neutralTiles[i].hasGear = true;
-      neutralTiles[i].gearScrap = 50;
+      neutralTiles[i].gearScrap = this.state.gearScrapSupply;
     }
 
     // Populate state
@@ -644,7 +649,7 @@ export class GameRoom extends Room<GameState> {
         const tile = this.state.tiles[idx];
         if (tile) {
           tile.hasGear = true;
-          tile.gearScrap = 50;
+          tile.gearScrap = this.state.gearScrapSupply;
         }
       }
     }
@@ -775,7 +780,7 @@ export class GameRoom extends Room<GameState> {
     }
     for (let i = 0; i < Math.min(gearCount, neutralTiles.length); i++) {
       neutralTiles[i].hasGear = true;
-      neutralTiles[i].gearScrap = 50;
+      neutralTiles[i].gearScrap = this.state.gearScrapSupply;
     }
 
     // Populate state tiles
