@@ -467,6 +467,9 @@ export class GameRoom extends Room<GameState> {
     // Save the configured time limit for series resets
     this.configuredTimeLimit = this.state.timeRemaining;
 
+    // Delay per-tick gear spawning for 20 seconds after round start
+    this.gearRespawnCountdown = 20;
+
     // Start the 1-second game loop
     this.gameLoopInterval = this.clock.setInterval(() => this.gameTick(), 1000);
 
@@ -632,13 +635,17 @@ export class GameRoom extends Room<GameState> {
       }
     });
 
-    // 6. Gear spawning — 1 new gear every second on a random unclaimed tile
-    const gearIndices = spawnNewGears(this.state.tiles.toArray(), 1);
-    for (const idx of gearIndices) {
-      const tile = this.state.tiles[idx];
-      if (tile) {
-        tile.hasGear = true;
-        tile.gearScrap = 50;
+    // 6. Gear spawning — delayed by 20 seconds at round start
+    if (this.gearRespawnCountdown > 0) {
+      this.gearRespawnCountdown--;
+    } else {
+      const gearIndices = spawnNewGears(this.state.tiles.toArray(), 1);
+      for (const idx of gearIndices) {
+        const tile = this.state.tiles[idx];
+        if (tile) {
+          tile.hasGear = true;
+          tile.gearScrap = 50;
+        }
       }
     }
 
@@ -795,7 +802,7 @@ export class GameRoom extends Room<GameState> {
 
     // Reset internal counters
     this.soloTeamTicks = 0;
-    this.gearRespawnCountdown = -1;
+    this.gearRespawnCountdown = 20;
 
     // Reset timer to configured time limit
     this.state.timeRemaining = this.configuredTimeLimit;
