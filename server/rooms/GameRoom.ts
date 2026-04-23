@@ -15,9 +15,11 @@ import {
 } from "../logic/ConflictEngine";
 import { generateAIName } from "../logic/aiNames";
 import { sanitizeName } from "../logic/sanitize";
+import { RateLimiter } from "../logic/RateLimiter";
 
 export class GameRoom extends Room<GameState> {
   maxClients = 20;
+  private rateLimiter!: RateLimiter;
   private gameLoopInterval: ReturnType<typeof this.clock.setInterval> | null = null;
   private hostId: string = "";
   private soloTeamTicks: number = 0;
@@ -42,6 +44,7 @@ export class GameRoom extends Room<GameState> {
   onCreate() {
     this.setState(new GameState());
     this.state.phase = "waiting";
+    this.rateLimiter = new RateLimiter();
 
     // Generate unique 5-char short code
     let code = GameRoom.generateShortCode();
@@ -57,6 +60,7 @@ export class GameRoom extends Room<GameState> {
 
     this.onMessage("claimTile", (client, data: { x: number; y: number }) => {
       if (this.state.phase !== "active") return;
+      if (!this.rateLimiter.allow(client.sessionId, "claimTile")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
@@ -93,6 +97,7 @@ export class GameRoom extends Room<GameState> {
 
     this.onMessage("upgradeAttack", (client) => {
       if (this.state.phase !== "active") return;
+      if (!this.rateLimiter.allow(client.sessionId, "upgradeAttack")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player || player.absorbed) return;
 
@@ -106,6 +111,7 @@ export class GameRoom extends Room<GameState> {
 
     this.onMessage("upgradeDefense", (client) => {
       if (this.state.phase !== "active") return;
+      if (!this.rateLimiter.allow(client.sessionId, "upgradeDefense")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player || player.absorbed) return;
 
@@ -131,6 +137,7 @@ export class GameRoom extends Room<GameState> {
     // Mine scrap from a gear tile
     this.onMessage("mineGear", (client, data: { x: number; y: number }) => {
       if (this.state.phase !== "active") return;
+      if (!this.rateLimiter.allow(client.sessionId, "mineGear")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
@@ -377,6 +384,7 @@ export class GameRoom extends Room<GameState> {
     }
 
     this.state.players.delete(client.sessionId);
+    this.rateLimiter.removePlayer(client.sessionId);
 
     // If the host left during waiting, assign a new host
     if (client.sessionId === this.hostId && this.state.phase === "waiting") {
@@ -786,6 +794,7 @@ export class GameRoom extends Room<GameState> {
     // Reset internal counters
     this.soloTeamTicks = 0;
     this.gearRespawnCountdown = -1;
+    this.rateLimiter.reset();
 
     // Reset timer to configured time limit
     this.state.timeRemaining = this.configuredTimeLimit;
