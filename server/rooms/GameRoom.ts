@@ -473,6 +473,8 @@ export class GameRoom extends Room<GameState> {
     console.log(
       `Game started: ${gridSize}x${gridSize} grid, ${playerIds.length} players`
     );
+
+    this.broadcast("gameStarted");
   }
 
   /**
@@ -533,6 +535,14 @@ export class GameRoom extends Room<GameState> {
           if (toPlayer) {
             // Award bonus scrap
             toPlayer.resources += Math.floor(0.25 * fromPlayer.resources);
+
+            // Transfer all absorbed player's tiles to the absorber
+            this.state.tiles.forEach((tile) => {
+              if (tile.ownerId === fromPlayer.id) {
+                tile.ownerId = toPlayer.id;
+                toPlayer.tileCount += 1;
+              }
+            });
 
             // Prepend absorbed player's adjective(s) to absorber's team name
             const absorbedAdj = fromPlayer.nameAdj || fromPlayer.teamName.split(" ").slice(0, -1).join(" ");

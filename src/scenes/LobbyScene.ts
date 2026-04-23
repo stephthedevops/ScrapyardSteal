@@ -185,23 +185,6 @@ export class LobbyScene extends Phaser.Scene {
         this.networkManager.sendSetName(initialName.adj, initialName.noun);
 
         this.setupStateListener();
-
-        // Poll for phase change as a fallback (in case onStateChange misses it)
-        this.time.addEvent({
-          delay: 500,
-          loop: true,
-          callback: () => {
-            if (this.transitioned) return;
-          if (this.room?.state?.phase === "active") {
-            this.transitioned = true;
-            this.scene.start("GameScene", {
-              room: this.room,
-              networkManager: this.networkManager,
-              sessionId: this.localSessionId,
-            });
-          }
-        },
-      });
     })
       .catch((err: Error) => {
         this.showErrorPopup("Connection failed: " + err.message);
@@ -368,6 +351,17 @@ export class LobbyScene extends Phaser.Scene {
       });
     });
 
+    // Handle gameStarted broadcast — reliable transition for all clients
+    this.room.onMessage("gameStarted", () => {
+      if (this.transitioned) return;
+      this.transitioned = true;
+      this.scene.start("GameScene", {
+        room: this.room,
+        networkManager: this.networkManager,
+        sessionId: this.localSessionId,
+      });
+    });
+
     // Task 9.6: Listen for mid-lobby disconnects
     this.room.onLeave((code: number) => {
       if (!this.transitioned) {
@@ -377,17 +371,6 @@ export class LobbyScene extends Phaser.Scene {
 
     this.room.onStateChange((state: any) => {
       if (this.transitioned) return;
-
-      // If game started, switch to GameScene
-      if (state.phase === "active") {
-        this.transitioned = true;
-        this.scene.start("GameScene", {
-          room: this.room,
-          networkManager: this.networkManager,
-          sessionId: this.localSessionId,
-        });
-        return;
-      }
 
       // Update player list
       const players: string[] = [];
