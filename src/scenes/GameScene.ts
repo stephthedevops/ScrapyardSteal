@@ -11,6 +11,7 @@ export class GameScene extends Phaser.Scene {
   private room: any = null;
   private localSessionId: string = "";
   private currentDirection: string = "";
+  private currentTileCost: number = 10;
   private absorbedPlayerIds: Set<string> = new Set();
   private playerNameCache: Map<string, string> = new Map();
   private gameEnded = false;
@@ -214,6 +215,7 @@ export class GameScene extends Phaser.Scene {
       const attackCost = 50 * effectivePlayer.attack;
       const defenseCost = 50 * effectivePlayer.defense;
       this.hudManager.updateUpgradeCosts(attackCost, defenseCost);
+      this.currentTileCost = Math.floor(10 * (1 + 0.02 * effectivePlayer.tileCount));
       this.hudManager.updateTeamName(effectivePlayer.teamName || "");
 
       // Update player identity below grid
@@ -288,7 +290,7 @@ export class GameScene extends Phaser.Scene {
       this.currentDirection
     );
 
-    this.gridRenderer.highlightClaimable(filtered, this.currentDirection);
+    this.gridRenderer.highlightClaimable(filtered, this.currentDirection, this.currentTileCost);
   }
 
   private detectAbsorptions(state: any): void {
@@ -427,7 +429,6 @@ export class GameScene extends Phaser.Scene {
       .setDepth(200);
 
     // Winner announcement
-    const winnerNoun = winnerName.split(" ").pop() || winnerName;
     this.add
       .text(400, 220, "GAME OVER", {
         fontSize: "40px",
@@ -438,10 +439,12 @@ export class GameScene extends Phaser.Scene {
       .setDepth(201);
 
     this.add
-      .text(400, 280, `${winnerNoun} wins with ${maxTiles} tiles!`, {
-        fontSize: "20px",
+      .text(400, 280, `${winnerName} wins with ${maxTiles} tiles!`, {
+        fontSize: "18px",
         color: "#e0a030",
         fontFamily: "monospace",
+        wordWrap: { width: 600 },
+        align: "center",
       })
       .setOrigin(0.5)
       .setDepth(201);

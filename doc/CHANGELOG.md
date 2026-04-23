@@ -2,6 +2,69 @@
 
 All notable changes to Scrapyard Steal.
 
+## [0.5.0] — 2025-04-22
+
+### Added
+- Gear respawn — when no unclaimed gears remain, new gears spawn on random unclaimed tiles every 20s (count = active players, gearScrap = 50)
+- Server config panel — host can open ⚙ CONFIG from lobby to set match settings
+- Time limit selector — 2, 5, 7, or 10 minute matches (default 5 min)
+- Match format — Single Match, Best of 3, Best of 5 with auto-rematch and series score tracking
+- AI players — host can add up to 4 computer players with color picker and 🤖 icon
+- AI naming — household-roid noun pool (35 entries: Fridgeroid, Toasteroid, etc.) with no duplicate adj/noun across AI and human players
+- 💡 Hint button on game screen — popup with controls summary, game continues behind overlay
+- BACK button on lobby page — all players can return to menu without starting
+- "reroll" label next to ♻ button for discoverability
+- Connection error popup — styled overlay with error reason, "BACK TO MENU" button, auto-kick to menu after 5s
+- Mid-lobby disconnect handling — "Disconnected from server" popup with same auto-kick behavior
+- Series score display in leaderboard header during bo3/bo5 matches
+- `sendSetConfig`, `sendAddAI`, `sendRemoveAI` methods on NetworkManager
+- `sanitizeName()` pure function in `server/logic/sanitize.ts`
+- `spawnNewGears()` pure function in `server/logic/GridManager.ts`
+- `generateAIName()` and `HOUSEHOLD_ROID` array in `src/utils/nameGenerator.ts`
+- `matchFormat`, `roundNumber`, `seriesScoresJSON` fields on GameState schema
+- `isAI` field on Player schema
+- Dynamic version in About popup via Vite `define` (reads from package.json)
+- 13 property-based tests using fast-check (43 total tests across 8 files)
+
+### Changed
+- Name sanitization now strips all non-printable ASCII (0x20–0x7E) and trims whitespace, applied before duplicate check
+- Game end logic refactored into `handleRoundEnd()` to support series play
+- `resetForNextRound()` re-initializes grid, reassigns positions, resets player stats between rounds
+
+### Fixed
+- Color picker ✕ marks not updating when a player disconnects and frees their color
+- Gear mining had no visual feedback on click (now plays gold flash animation, 300ms)
+
+## [0.4.2] — 2025-04-17
+
+### Added
+- Bounds checking on tile coordinates in claimTile/mineGear
+- gearScrap negative guard (Math.max to prevent negative values)
+- Name sanitization — server truncates adj/noun to 16 characters
+- Color validation against allowed palette on server
+- Attack/defense max cap (50)
+- About the Game button on menu — shows team names, version, GitHub link
+- Colyseus Cloud deployment — server live at us-ord-ef0ec457.colyseus.cloud
+- ecosystem.config.js + @colyseus/tools integration for Cloud hosting
+- GitHub Pages site with itch.io embed
+- build:prod script with auto-zip for itch.io submission
+
+### Fixed
+- Server build alignment with Colyseus Cloud expectations (build/ dir, ecosystem.config.js)
+- Express routes for room code lookup and public room listing
+
+## [0.4.1] — 2025-04-16
+
+### Added
+- MIT LICENSE
+- Equidistant starting positions — max 2 tiles from edge
+- Issue tracking system README
+
+### Fixed
+- Server split into app.config.ts + index.ts with listen() call per Colyseus Cloud template
+- ecosystem.config.js with explicit instances:1 and exec_mode:fork
+- build:prod script and .gitignore for dist.zip
+
 ## [0.4.0] — 2025-04-16
 
 ### Added

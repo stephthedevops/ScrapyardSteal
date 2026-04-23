@@ -46,7 +46,7 @@ You can tag items to move them during triage. Add the tag in brackets after the 
 | Tag | Moves to |
 |-----|----------|
 | `[cpt]` | completed.md |
-| `[cpr]` | core-priorities.md |
+| `[core]` | core-priorities.md |
 | `[bl]` | backlog.md |
 | `[nth]` | nice-to-haves.md |
 | `[bug]` | known-bugs.md |

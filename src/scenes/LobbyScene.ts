@@ -510,12 +510,12 @@ export class LobbyScene extends Phaser.Scene {
   /** Task 9.1: Create ⚙ CONFIG button next to START */
   private createConfigButton(): void {
     const bg = this.add
-      .rectangle(0, 0, 140, 40, BUTTON_BG, 0.85)
+      .rectangle(0, 0, 140, 36, BUTTON_BG, 0.85)
       .setInteractive({ useHandCursor: true });
 
     const label = this.add
       .text(0, 0, "⚙ CONFIG", {
-        fontSize: "16px",
+        fontSize: "14px",
         color: AMBER,
         fontFamily: FONT,
       })
@@ -527,8 +527,8 @@ export class LobbyScene extends Phaser.Scene {
       this.openConfigPanel();
     });
 
-    this.configButton = this.add.container(560, 500, [bg, label]);
-    this.configButton.setSize(140, 40);
+    this.configButton = this.add.container(485, 575, [bg, label]);
+    this.configButton.setSize(140, 36);
     this.configButton.setDepth(HUD_DEPTH);
   }
 
@@ -554,7 +554,7 @@ export class LobbyScene extends Phaser.Scene {
       this.scene.start("MenuScene");
     });
 
-    const container = this.add.container(400, 575, [bg, label]);
+    const container = this.add.container(325, 575, [bg, label]);
     container.setSize(160, 36);
     container.setDepth(HUD_DEPTH);
   }

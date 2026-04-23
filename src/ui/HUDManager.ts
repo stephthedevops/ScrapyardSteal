@@ -27,11 +27,13 @@ export class HUDManager {
   private leaderboardTitle: Phaser.GameObjects.Text;
   private leaderboardText: Phaser.GameObjects.Text;
 
-  // Upgrade buttons (bottom-center)
+  // Upgrade buttons (right side, grouped under legend)
   private attackButton: Phaser.GameObjects.Container;
   private defenseButton: Phaser.GameObjects.Container;
+  private collectionButton: Phaser.GameObjects.Container;
   private attackCostText: Phaser.GameObjects.Text;
   private defenseCostText: Phaser.GameObjects.Text;
+  private collectionCostText: Phaser.GameObjects.Text;
 
   // Notification (center)
   private notificationText: Phaser.GameObjects.Text;
@@ -43,6 +45,7 @@ export class HUDManager {
   // Callbacks for upgrade buttons
   public onUpgradeAttack: (() => void) | null = null;
   public onUpgradeDefense: (() => void) | null = null;
+  public onUpgradeCollection: (() => void) | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -94,7 +97,25 @@ export class HUDManager {
       })
       .setDepth(HUD_DEPTH + 1);
 
-    // --- Upgrade buttons (bottom-center) ---
+    // --- Purchase Bot legend + buttons (right side) ---
+    const legendX = GAME_WIDTH - 75;
+    const legendY = GAME_HEIGHT / 2 - 70;
+
+    // Legend background
+    scene.add
+      .rectangle(legendX, legendY + 55, 140, 170, DARK_BG, DARK_BG_ALPHA)
+      .setDepth(HUD_DEPTH);
+
+    // Legend title
+    scene.add
+      .text(legendX, legendY, "PURCHASE BOT", {
+        fontFamily: FONT_FAMILY,
+        fontSize: "11px",
+        color: GOLD,
+      })
+      .setOrigin(0.5)
+      .setDepth(HUD_DEPTH + 1);
+
     this.attackCostText = scene.add
       .text(0, 0, "", {
         fontFamily: FONT_FAMILY,
@@ -111,20 +132,36 @@ export class HUDManager {
       })
       .setOrigin(0.5, 0.5);
 
+    this.collectionCostText = scene.add
+      .text(0, 0, "", {
+        fontFamily: FONT_FAMILY,
+        fontSize: "11px",
+        color: GOLD,
+      })
+      .setOrigin(0.5, 0.5);
+
     this.attackButton = this.createUpgradeButton(
-      GAME_WIDTH - 75,
-      GAME_HEIGHT / 2 - 25,
-      "⚔ ATK",
+      legendX,
+      legendY + 30,
+      "⚔ ATK Bot",
       this.attackCostText,
       () => this.onUpgradeAttack?.()
     );
 
     this.defenseButton = this.createUpgradeButton(
-      GAME_WIDTH - 75,
-      GAME_HEIGHT / 2 + 25,
-      "🛡 DEF",
+      legendX,
+      legendY + 70,
+      "🛡 DEF Bot",
       this.defenseCostText,
       () => this.onUpgradeDefense?.()
+    );
+
+    this.collectionButton = this.createUpgradeButton(
+      legendX,
+      legendY + 110,
+      "⚙ COL Bot",
+      this.collectionCostText,
+      () => this.onUpgradeCollection?.()
     );
 
     // --- Notification (center of screen) ---
@@ -198,15 +235,17 @@ export class HUDManager {
     defense: number,
     tileCount: number,
     factories: number,
-    isTeamLead?: boolean
+    isTeamLead?: boolean,
+    collection?: number
   ): void {
     const role = isTeamLead === false ? "Member" : "Lead";
     this.statsText.setText(
       [
         `Role:    ${role}`,
         `Scrap:   ${scrap}`,
-        `Attack:  ${attack}`,
-        `Defense: ${defense}`,
+        `ATK Bots: ${attack}`,
+        `DEF Bots: ${defense}`,
+        `COL Bots: ${collection ?? 0}`,
         `Tiles:   ${tileCount}`,
         `🏭:      ${factories}x`,
       ].join("\n")
@@ -277,9 +316,10 @@ export class HUDManager {
   /**
    * Update the cost labels shown on upgrade buttons.
    */
-  updateUpgradeCosts(attackCost: number, defenseCost: number): void {
+  updateUpgradeCosts(attackCost: number, defenseCost: number, collectionCost?: number): void {
     this.attackCostText.setText(`Cost: ${attackCost}`);
     this.defenseCostText.setText(`Cost: ${defenseCost}`);
+    this.collectionCostText.setText(`Cost: ${collectionCost ?? "—"}`);
   }
 
   /**

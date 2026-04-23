@@ -36,3 +36,12 @@ Must-do items before jam submission on April 26th.
 - [ ] Rate limiting on tile claims, upgrades, and gear mining (prevent click spam)
 - [ ] Sanitize player names before broadcast (strip control chars) @steph
 - [ ] Gear respawn — when no unclaimed gears remain, spawn new gears (count = player count) on unclaimed tiles every 20 seconds @steph
+
+## Nathan's Feedback — Scrap & Economy
+
+- [ ] Scrap piles should have much higher supply (1000) and be configurable in server config
+- [ ] Starting factory should generate inexhaustible scrap when clicked
+- [ ] Starting factory should auto-generate 1 scrap/sec passively (no click needed)
+- [ ] Show very small cost-to-capture on each tile before clicking
+- [ ] Re-theme ATK and DEF as crafting "Attack Bots", "Defense Bots" and add "Collection Bots"
+- [ ] Upgrade cost should scale by % (e.g. 10% increase) instead of flat 50×level
