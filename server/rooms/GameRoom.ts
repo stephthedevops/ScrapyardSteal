@@ -25,6 +25,24 @@ export class GameRoom extends Room<GameState> {
   private seriesScores: Map<string, number> = new Map();
   private configuredTimeLimit: number = 300;
 
+  /** Rate limiting: track last action timestamp per player per action type */
+  private lastActionTime: Map<string, Map<string, number>> = new Map();
+  private static readonly RATE_LIMIT_MS = 100; // 100ms minimum between same-type actions
+
+  /** Check if an action is rate-limited for a player. Returns true if allowed. */
+  private checkRateLimit(sessionId: string, action: string): boolean {
+    const now = Date.now();
+    let playerActions = this.lastActionTime.get(sessionId);
+    if (!playerActions) {
+      playerActions = new Map();
+      this.lastActionTime.set(sessionId, playerActions);
+    }
+    const lastTime = playerActions.get(action) ?? 0;
+    if (now - lastTime < GameRoom.RATE_LIMIT_MS) return false;
+    playerActions.set(action, now);
+    return true;
+  }
+
   /** Global map of shortCode → roomId for lookups */
   static shortCodeMap = new Map<string, string>();
   /** Set of shortCodes that are public and waiting */
@@ -57,6 +75,7 @@ export class GameRoom extends Room<GameState> {
 
     this.onMessage("claimTile", (client, data: { x: number; y: number }) => {
       if (this.state.phase !== "active") return;
+      if (!this.checkRateLimit(client.sessionId, "claimTile")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
@@ -93,6 +112,7 @@ export class GameRoom extends Room<GameState> {
 
     this.onMessage("upgradeAttack", (client) => {
       if (this.state.phase !== "active") return;
+      if (!this.checkRateLimit(client.sessionId, "upgradeAttack")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player || player.absorbed) return;
 
@@ -106,6 +126,7 @@ export class GameRoom extends Room<GameState> {
 
     this.onMessage("upgradeDefense", (client) => {
       if (this.state.phase !== "active") return;
+      if (!this.checkRateLimit(client.sessionId, "upgradeDefense")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player || player.absorbed) return;
 
@@ -115,6 +136,69 @@ export class GameRoom extends Room<GameState> {
 
       player.resources -= cost;
       player.defense += 1;
+    });
+
+    // Purchase a collection bot — gives one to every team member
+    this.onMessage("upgradeCollection", (client) => {
+      if (this.state.phase !== "active") return;
+      if (!this.checkRateLimit(client.sessionId, "upgradeCollection")) return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player || player.absorbed) return;
+
+      const cost = calculateUpgradeCost(player.collection);
+      if (player.resources < cost) return;
+      if (player.collection >= 50) return; // max cap
+
+      player.resources -= cost;
+      player.collection += 1;
+
+      // Give one collection bot to every team member too
+      this.state.players.forEach((p) => {
+        if (p.id !== player.id && p.teamId === player.id) {
+          p.collection += 1;
+        }
+      });
+    });
+
+    // Place a collector (⚒) on a tile the player's team owns (spawn or gear tile)
+    this.onMessage("placeCollector", (client, data: { x: number; y: number }) => {
+      if (this.state.phase !== "active") return;
+      if (!this.checkRateLimit(client.sessionId, "placeCollector")) return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      // Determine the team leader
+      let leader = player;
+      if (player.absorbed && player.teamId) {
+        const teamLeader = this.state.players.get(player.teamId);
+        if (!teamLeader || teamLeader.absorbed) return;
+        leader = teamLeader;
+      }
+
+      // Bounds check
+      if (data.x < 0 || data.x >= this.state.gridWidth || data.y < 0 || data.y >= this.state.gridHeight) return;
+
+      const tile = this.state.tiles.find((t) => t.x === data.x && t.y === data.y);
+      if (!tile) return;
+
+      // Tile must be owned by the team leader
+      if (tile.ownerId !== leader.id) return;
+
+      // Tile must be a spawn or gear tile
+      if (!tile.isSpawn && !tile.hasGear) return;
+
+      // Parse existing collectors
+      let collectors: { x: number; y: number }[] = [];
+      try { collectors = JSON.parse(leader.collectorsJSON); } catch { collectors = []; }
+
+      // Check if already placed here
+      if (collectors.some((c) => c.x === data.x && c.y === data.y)) return;
+
+      // Must have available collectors (collection count > placed count)
+      if (collectors.length >= leader.collection) return;
+
+      collectors.push({ x: data.x, y: data.y });
+      leader.collectorsJSON = JSON.stringify(collectors);
     });
 
     this.onMessage("setDirection", (client, data: { direction: string }) => {
@@ -131,6 +215,7 @@ export class GameRoom extends Room<GameState> {
     // Mine scrap from a gear tile
     this.onMessage("mineGear", (client, data: { x: number; y: number }) => {
       if (this.state.phase !== "active") return;
+      if (!this.checkRateLimit(client.sessionId, "mineGear")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
@@ -248,11 +333,21 @@ export class GameRoom extends Room<GameState> {
       }
     });
 
-    // Allowed color palette
-    const ALLOWED_COLORS = [
+    // Allowed color palette — first 10 are base, next 10 are extended (20-player mode)
+    const BASE_COLORS = [
       0xb87333, 0x4a8a5e, 0xffd700, 0x8a8a7a, 0x7a3ea0,
       0x0047ab, 0xff00ff, 0x8b4513, 0xdbe4eb, 0x36454f,
     ];
+    const EXTENDED_COLORS = [
+      0xcda434, 0x2eb8a6, 0xe8a0bf, 0x5c6670, 0xa8a495,
+      0xc44b2f, 0x4682b4, 0xff6b35, 0xe6e0d4, 0x6b4226,
+    ];
+    const ALL_COLORS = [...BASE_COLORS, ...EXTENDED_COLORS];
+
+    /** Get the currently allowed colors based on maxPlayers setting */
+    const getAllowedColors = () => {
+      return this.state.maxPlayers >= 20 ? ALL_COLORS : BASE_COLORS;
+    };
 
     // Player selects a color
     this.onMessage("selectColor", (client, data: { color: number }) => {
@@ -260,8 +355,9 @@ export class GameRoom extends Room<GameState> {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
-      // Validate color is in allowed palette
-      if (!ALLOWED_COLORS.includes(data.color)) return;
+      // Validate color is in allowed palette (based on maxPlayers)
+      const allowedColors = getAllowedColors();
+      if (!allowedColors.includes(data.color)) return;
 
       // Check if color is already taken by another player
       let taken = false;
@@ -275,8 +371,8 @@ export class GameRoom extends Room<GameState> {
       player.color = data.color;
     });
 
-    // Host configures match settings (time limit, match format)
-    this.onMessage("setConfig", (client, data: { timeLimit?: number; matchFormat?: string; gearScrapSupply?: number }) => {
+    // Host configures match settings (time limit, match format, gear scrap, max players)
+    this.onMessage("setConfig", (client, data: { timeLimit?: number; matchFormat?: string; gearScrapSupply?: number; maxPlayers?: number }) => {
       if (this.state.phase !== "waiting") return;
       if (client.sessionId !== this.hostId) return;
 
@@ -294,6 +390,20 @@ export class GameRoom extends Room<GameState> {
       if (data.gearScrapSupply !== undefined && ALLOWED_SCRAP_VALUES.includes(data.gearScrapSupply)) {
         this.state.gearScrapSupply = data.gearScrapSupply;
       }
+
+      const ALLOWED_MAX_PLAYERS = [10, 20];
+      if (data.maxPlayers !== undefined && ALLOWED_MAX_PLAYERS.includes(data.maxPlayers)) {
+        this.state.maxPlayers = data.maxPlayers;
+        // Reset any extended colors that are no longer valid when switching to 10
+        if (data.maxPlayers === 10) {
+          const baseColors = BASE_COLORS;
+          this.state.players.forEach((p) => {
+            if (p.color >= 0 && !baseColors.includes(p.color)) {
+              p.color = -1; // reset to unselected
+            }
+          });
+        }
+      }
     });
 
     // Host adds an AI player
@@ -307,7 +417,8 @@ export class GameRoom extends Room<GameState> {
       if (aiCount >= 4) return;
 
       // Validate color is in allowed palette
-      if (!ALLOWED_COLORS.includes(data.color)) return;
+      const allowedColors = getAllowedColors();
+      if (!allowedColors.includes(data.color)) return;
 
       // Check if color is already taken
       let colorTaken = false;
@@ -342,6 +453,12 @@ export class GameRoom extends Room<GameState> {
   }
 
   onJoin(client: Client) {
+    // Enforce max player limit
+    if (this.state.players.size >= this.state.maxPlayers) {
+      client.leave();
+      return;
+    }
+
     const player = new Player();
     player.id = client.sessionId;
     player.teamId = client.sessionId; // starts as own team lead
@@ -369,6 +486,9 @@ export class GameRoom extends Room<GameState> {
   }
 
   onLeave(client: Client) {
+    // Clean up rate limit tracking
+    this.lastActionTime.delete(client.sessionId);
+
     // Convert all of the leaving player's tiles to neutral
     this.state.tiles.forEach((tile) => {
       if (tile.ownerId === client.sessionId) {
@@ -640,6 +760,58 @@ export class GameRoom extends Room<GameState> {
       }
     });
 
+    // 5c. Automine — collectors placed on tiles automatically mine each tick
+    this.state.players.forEach((player) => {
+      if (player.absorbed) return;
+
+      let collectors: { x: number; y: number }[] = [];
+      try { collectors = JSON.parse(player.collectorsJSON); } catch { collectors = []; }
+      if (collectors.length === 0) return;
+
+      // Count factories for multiplier
+      let factoryCount = 0;
+      this.state.tiles.forEach((t) => {
+        if (t.isSpawn && t.ownerId === player.id) factoryCount++;
+      });
+      const multiplier = Math.max(1, factoryCount);
+
+      let changed = false;
+      const remaining: { x: number; y: number }[] = [];
+
+      for (const c of collectors) {
+        const tile = this.state.tiles.find((t) => t.x === c.x && t.y === c.y);
+        if (!tile) continue;
+
+        // Remove collector if tile is no longer owned by this player
+        if (tile.ownerId !== player.id) {
+          changed = true;
+          continue;
+        }
+
+        // Mine gear if tile has scrap
+        if (tile.hasGear && tile.gearScrap > 0) {
+          const baseExtract = player.attack * multiplier;
+          const extracted = Math.min(baseExtract, tile.gearScrap);
+          tile.gearScrap = Math.max(0, tile.gearScrap - extracted);
+          player.resources += extracted;
+          if (tile.gearScrap <= 0) {
+            tile.hasGear = false;
+          }
+        }
+
+        // Spawn tiles generate passive income (1 scrap per tick per collector)
+        if (tile.isSpawn) {
+          player.resources += 1 * multiplier;
+        }
+
+        remaining.push(c);
+      }
+
+      if (changed || remaining.length !== collectors.length) {
+        player.collectorsJSON = JSON.stringify(remaining);
+      }
+    });
+
     // 6. Gear spawning — delayed by 20 seconds at round start
     if (this.gearRespawnCountdown > 0) {
       this.gearRespawnCountdown--;
@@ -797,6 +969,8 @@ export class GameRoom extends Room<GameState> {
       player.resources = 0;
       player.attack = 1;
       player.defense = 1;
+      player.collection = 0;
+      player.collectorsJSON = "[]";
       player.tileCount = 1;
       player.absorbed = false;
       player.direction = "";

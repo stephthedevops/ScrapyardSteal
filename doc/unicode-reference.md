@@ -52,8 +52,9 @@ Characters available for use in the game UI.
 | Char | Where |
 |------|-------|
 | 🏭 | Spawn tile (factory) |
-| ⚙ | Gear tile (minable scrap) |
+| ⚙ | Gear tile (minable scrap) / COL Bot button |
 | ⚔ | Attack upgrade button |
 | 🛡 | Defense upgrade button |
+| ⚒ | Collector (placed on tiles to automine) |
 | ♻ | Name reroll button |
 | ✕ | Taken color indicator |

@@ -85,11 +85,19 @@ export class NetworkManager {
     this.room?.send("mineGear", { x, y });
   }
 
+  sendUpgradeCollection(): void {
+    this.room?.send("upgradeCollection", {});
+  }
+
+  sendPlaceCollector(x: number, y: number): void {
+    this.room?.send("placeCollector", { x, y });
+  }
+
   sendSetName(adj: string, noun: string): void {
     this.room?.send("setName", { adj, noun });
   }
 
-  sendSetConfig(config: { timeLimit?: number; matchFormat?: string; gearScrapSupply?: number }): void {
+  sendSetConfig(config: { timeLimit?: number; matchFormat?: string; gearScrapSupply?: number; maxPlayers?: number }): void {
     this.room?.send("setConfig", config);
   }
 

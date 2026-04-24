@@ -14,20 +14,31 @@ const HUD_DEPTH = 100;
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 
+/**
+ * HUD layout zones — must stay in sync with GridRenderer margins.
+ * Left panel:  0 → 136
+ * Right panel:  664 → 800
+ * Bottom strip: 554 → 600
+ * Top strip:    0 → 8  (leaderboard floats top-center, above grid)
+ */
+const LEFT_PANEL_W = 136;
+const RIGHT_PANEL_W = 136;
+const BOTTOM_STRIP_Y = 554;
+
 export class HUDManager {
   private scene: Phaser.Scene;
 
-  // Stats panel (middle-left)
+  // Stats panel (left gutter)
   private statsBg: Phaser.GameObjects.Rectangle;
   private statsTitle: Phaser.GameObjects.Text;
   private statsText: Phaser.GameObjects.Text;
 
-  // Leaderboard (top-right)
+  // Leaderboard (top-center, above grid)
   private leaderboardBg: Phaser.GameObjects.Rectangle;
   private leaderboardTitle: Phaser.GameObjects.Text;
   private leaderboardText: Phaser.GameObjects.Text;
 
-  // Upgrade buttons (right side, grouped under legend)
+  // Upgrade buttons (right gutter)
   private attackButton: Phaser.GameObjects.Container;
   private defenseButton: Phaser.GameObjects.Container;
   private collectionButton: Phaser.GameObjects.Container;
@@ -39,78 +50,91 @@ export class HUDManager {
   private notificationText: Phaser.GameObjects.Text;
   private notificationTimer?: Phaser.Time.TimerEvent;
 
-  // Player identity (below grid)
+  // Player identity (bottom strip)
   private identityText: Phaser.GameObjects.Text;
+
+  // Collector icons (⚒) displayed above identity line
+  private collectorIcons: Phaser.GameObjects.Text[] = [];
+  private collectorCount: number = 0;
+  private placedCollectorCount: number = 0;
 
   // Callbacks for upgrade buttons
   public onUpgradeAttack: (() => void) | null = null;
   public onUpgradeDefense: (() => void) | null = null;
   public onUpgradeCollection: (() => void) | null = null;
+  public onCollectorClick: ((index: number) => void) | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
 
-    // --- Stats panel (middle-left, outside grid area) ---
+    // ─── LEFT GUTTER: Stats panel ───────────────────────────────────
+    const statsX = 4;
+    const statsY = 8;
+
     this.statsBg = scene.add
-      .rectangle(4, GAME_HEIGHT / 2 - 80, 160, 160, DARK_BG, DARK_BG_ALPHA)
+      .rectangle(statsX, statsY, LEFT_PANEL_W - 8, 200, DARK_BG, DARK_BG_ALPHA)
       .setOrigin(0, 0)
       .setDepth(HUD_DEPTH);
 
     this.statsTitle = scene.add
-      .text(12, GAME_HEIGHT / 2 - 74, "", {
+      .text(statsX + 6, statsY + 6, "", {
         fontFamily: FONT_FAMILY,
-        fontSize: "11px",
+        fontSize: "10px",
         color: GOLD,
-        wordWrap: { width: 148 },
+        wordWrap: { width: LEFT_PANEL_W - 20 },
       })
       .setDepth(HUD_DEPTH + 1);
 
     this.statsText = scene.add
-      .text(12, GAME_HEIGHT / 2 - 54, "", {
-        fontFamily: FONT_FAMILY,
-        fontSize: "12px",
-        color: AMBER,
-        lineSpacing: 4,
-      })
-      .setDepth(HUD_DEPTH + 1);
-
-    // --- Leaderboard (top-right) ---
-    this.leaderboardBg = scene.add
-      .rectangle(GAME_WIDTH - 8, 8, 260, 160, DARK_BG, DARK_BG_ALPHA)
-      .setOrigin(1, 0)
-      .setDepth(HUD_DEPTH);
-
-    this.leaderboardTitle = scene.add
-      .text(GAME_WIDTH - 260, 14, "LEADERBOARD", {
-        fontFamily: FONT_FAMILY,
-        fontSize: "12px",
-        color: GOLD,
-      })
-      .setDepth(HUD_DEPTH + 1);
-
-    this.leaderboardText = scene.add
-      .text(GAME_WIDTH - 260, 32, "", {
+      .text(statsX + 6, statsY + 24, "", {
         fontFamily: FONT_FAMILY,
         fontSize: "11px",
         color: AMBER,
-        lineSpacing: 2,
+        lineSpacing: 3,
       })
       .setDepth(HUD_DEPTH + 1);
 
-    // --- Purchase Bot legend + buttons (right side) ---
-    const legendX = GAME_WIDTH - 75;
-    const legendY = GAME_HEIGHT / 2 - 70;
+    // ─── TOP-CENTER: Leaderboard ────────────────────────────────────
+    // Positioned above the grid, centered horizontally
+    this.leaderboardBg = scene.add
+      .rectangle(GAME_WIDTH / 2, 4, 260, 20, DARK_BG, DARK_BG_ALPHA)
+      .setOrigin(0.5, 0)
+      .setDepth(HUD_DEPTH);
+
+    this.leaderboardTitle = scene.add
+      .text(GAME_WIDTH / 2, 6, "LEADERBOARD", {
+        fontFamily: FONT_FAMILY,
+        fontSize: "10px",
+        color: GOLD,
+      })
+      .setOrigin(0.5, 0)
+      .setDepth(HUD_DEPTH + 1);
+
+    this.leaderboardText = scene.add
+      .text(GAME_WIDTH / 2, 20, "", {
+        fontFamily: FONT_FAMILY,
+        fontSize: "10px",
+        color: AMBER,
+        lineSpacing: 1,
+        align: "center",
+      })
+      .setOrigin(0.5, 0)
+      .setDepth(HUD_DEPTH + 1);
+
+    // ─── RIGHT GUTTER: Purchase Bot buttons ─────────────────────────
+    const rightX = GAME_WIDTH - RIGHT_PANEL_W / 2;
+    const btnStartY = 30;
 
     // Legend background
     scene.add
-      .rectangle(legendX, legendY + 55, 140, 170, DARK_BG, DARK_BG_ALPHA)
+      .rectangle(rightX, btnStartY + 70, RIGHT_PANEL_W - 4, 190, DARK_BG, DARK_BG_ALPHA)
       .setDepth(HUD_DEPTH);
 
     // Legend title
     scene.add
-      .text(legendX, legendY, "PURCHASE BOT", {
+      .text(rightX, btnStartY, "PURCHASE BOT", {
         fontFamily: FONT_FAMILY,
-        fontSize: "11px",
+        fontSize: "10px",
         color: GOLD,
       })
       .setOrigin(0.5)
@@ -119,7 +143,7 @@ export class HUDManager {
     this.attackCostText = scene.add
       .text(0, 0, "", {
         fontFamily: FONT_FAMILY,
-        fontSize: "11px",
+        fontSize: "10px",
         color: GOLD,
       })
       .setOrigin(0.5, 0.5);
@@ -127,7 +151,7 @@ export class HUDManager {
     this.defenseCostText = scene.add
       .text(0, 0, "", {
         fontFamily: FONT_FAMILY,
-        fontSize: "11px",
+        fontSize: "10px",
         color: GOLD,
       })
       .setOrigin(0.5, 0.5);
@@ -135,36 +159,36 @@ export class HUDManager {
     this.collectionCostText = scene.add
       .text(0, 0, "", {
         fontFamily: FONT_FAMILY,
-        fontSize: "11px",
+        fontSize: "10px",
         color: GOLD,
       })
       .setOrigin(0.5, 0.5);
 
     this.attackButton = this.createUpgradeButton(
-      legendX,
-      legendY + 30,
+      rightX,
+      btnStartY + 30,
       "⚔ ATK Bot",
       this.attackCostText,
       () => this.onUpgradeAttack?.()
     );
 
     this.defenseButton = this.createUpgradeButton(
-      legendX,
-      legendY + 70,
+      rightX,
+      btnStartY + 70,
       "🛡 DEF Bot",
       this.defenseCostText,
       () => this.onUpgradeDefense?.()
     );
 
     this.collectionButton = this.createUpgradeButton(
-      legendX,
-      legendY + 110,
+      rightX,
+      btnStartY + 110,
       "⚙ COL Bot",
       this.collectionCostText,
       () => this.onUpgradeCollection?.()
     );
 
-    // --- Notification (center of screen) ---
+    // ─── CENTER: Notification ───────────────────────────────────────
     this.notificationText = scene.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, "", {
         fontFamily: FONT_FAMILY,
@@ -178,11 +202,11 @@ export class HUDManager {
       .setDepth(HUD_DEPTH + 2)
       .setAlpha(0);
 
-    // --- Player identity (below grid) ---
+    // ─── BOTTOM STRIP: Player identity ──────────────────────────────
     this.identityText = scene.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 16, "", {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 12, "", {
         fontFamily: FONT_FAMILY,
-        fontSize: "12px",
+        fontSize: "11px",
         color: AMBER,
         align: "center",
       })
@@ -201,14 +225,15 @@ export class HUDManager {
     costText: Phaser.GameObjects.Text,
     onClick: () => void
   ): Phaser.GameObjects.Container {
+    const btnW = RIGHT_PANEL_W - 12;
     const bg = this.scene.add
-      .rectangle(0, 0, 130, 36, BUTTON_BG, 0.85)
+      .rectangle(0, 0, btnW, 34, BUTTON_BG, 0.85)
       .setInteractive({ useHandCursor: true });
 
     const labelText = this.scene.add
       .text(0, -6, label, {
         fontFamily: FONT_FAMILY,
-        fontSize: "12px",
+        fontSize: "11px",
         color: AMBER,
       })
       .setOrigin(0.5, 0.5);
@@ -221,7 +246,7 @@ export class HUDManager {
 
     const container = this.scene.add.container(x, y, [bg, labelText, costText]);
     container.setDepth(HUD_DEPTH + 1);
-    container.setSize(130, 36);
+    container.setSize(btnW, 34);
 
     return container;
   }
@@ -255,9 +280,9 @@ export class HUDManager {
   updateTeamName(name: string): void {
     this.statsTitle.setText(name);
     const titleHeight = this.statsTitle.height;
-    this.statsText.setPosition(12, this.statsTitle.y + titleHeight + 6);
-    const totalHeight = titleHeight + this.statsText.height + 20;
-    this.statsBg.setSize(160, Math.max(140, totalHeight));
+    this.statsText.setPosition(this.statsTitle.x, this.statsTitle.y + titleHeight + 4);
+    const totalHeight = titleHeight + this.statsText.height + 16;
+    this.statsBg.setSize(LEFT_PANEL_W - 8, Math.max(140, totalHeight));
   }
 
   updateIdentity(isTeamLead: boolean, teamName: string, playerAdj: string): void {
@@ -269,7 +294,54 @@ export class HUDManager {
   }
 
   /**
+   * Update the collector (⚒) icons displayed above the "You are" line.
+   * Unplaced collectors are bright gold and clickable; placed ones are dimmed.
+   */
+  updateCollectors(totalCollectors: number, placedCount: number): void {
+    // Only rebuild if counts changed
+    if (totalCollectors === this.collectorCount && placedCount === this.placedCollectorCount) return;
+    this.collectorCount = totalCollectors;
+    this.placedCollectorCount = placedCount;
+
+    // Destroy old icons
+    this.collectorIcons.forEach((icon) => icon.destroy());
+    this.collectorIcons = [];
+
+    if (totalCollectors <= 0) return;
+
+    const spacing = 20;
+    const totalWidth = totalCollectors * spacing;
+    const startX = GAME_WIDTH / 2 - totalWidth / 2;
+    const y = GAME_HEIGHT - 30;
+
+    for (let i = 0; i < totalCollectors; i++) {
+      const isPlaced = i < placedCount;
+      const icon = this.scene.add
+        .text(startX + i * spacing, y, "⚒", {
+          fontSize: "14px",
+          fontFamily: FONT_FAMILY,
+        })
+        .setOrigin(0, 0.5)
+        .setDepth(HUD_DEPTH + 1)
+        .setAlpha(isPlaced ? 0.35 : 1.0);
+
+      if (!isPlaced) {
+        icon.setInteractive({ useHandCursor: true });
+        const idx = i;
+        icon.on("pointerdown", () => {
+          this.onCollectorClick?.(idx);
+        });
+        icon.on("pointerover", () => icon.setScale(1.2));
+        icon.on("pointerout", () => icon.setScale(1.0));
+      }
+
+      this.collectorIcons.push(icon);
+    }
+  }
+
+  /**
    * Update the leaderboard. Sorts players by tileCount descending.
+   * Renders as a compact horizontal bar above the grid.
    */
   updateLeaderboard(
     players: { id: string; tileCount: number }[],
@@ -278,6 +350,8 @@ export class HUDManager {
     seriesScoresJSON?: string
   ): void {
     const sorted = [...players].sort((a, b) => b.tileCount - a.tileCount);
+
+    // Compact format: "1. Name 42  2. Name 31  ..."
     const lines = sorted.map(
       (p, i) => `${i + 1}. ${p.id} — ${p.tileCount}`
     );
@@ -303,14 +377,13 @@ export class HUDManager {
     this.leaderboardTitle.setText(timeStr ? `${titlePrefix}  ${timeStr}` : titlePrefix);
     this.leaderboardText.setText(lines.join("\n"));
 
-    // Resize background to fit content
-    const textWidth = this.leaderboardText.width;
+    // Resize background to fit content, centered
+    const textWidth = Math.max(this.leaderboardTitle.width, this.leaderboardText.width);
     const textHeight = this.leaderboardText.height;
     const bgWidth = Math.max(180, textWidth + 20);
-    this.leaderboardBg.setSize(bgWidth, textHeight + 30);
-    this.leaderboardBg.setPosition(GAME_WIDTH - 8, 8);
-    this.leaderboardTitle.setPosition(GAME_WIDTH - bgWidth, 14);
-    this.leaderboardText.setPosition(GAME_WIDTH - bgWidth, 32);
+    const bgHeight = textHeight + 24;
+    this.leaderboardBg.setSize(bgWidth, bgHeight);
+    this.leaderboardBg.setPosition(GAME_WIDTH / 2, 4);
   }
 
   /**
