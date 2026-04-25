@@ -4,6 +4,9 @@ import { GridRenderer } from "../rendering/GridRenderer";
 import { HUDManager } from "../ui/HUDManager";
 import { filterByDirection } from "../logic/DirectionFilter";
 
+const GAME_WIDTH = 800;
+const GAME_HEIGHT = 600;
+
 export class GameScene extends Phaser.Scene {
   private networkManager!: NetworkManager;
   private gridRenderer: GridRenderer | null = null;
@@ -11,18 +14,37 @@ export class GameScene extends Phaser.Scene {
   private room: any = null;
   private localSessionId: string = "";
   private currentDirection: string = "";
+  private currentTileCost: number = 10;
   private absorbedPlayerIds: Set<string> = new Set();
   private playerNameCache: Map<string, string> = new Map();
   private gameEnded = false;
   private tooltipText!: Phaser.GameObjects.Text;
   private connectingText: Phaser.GameObjects.Text | null = null;
   private hintPopupElements: Phaser.GameObjects.GameObject[] = [];
+  private placingCollector: boolean = false;
+  private placingDefenseBot: boolean = false;
 
   constructor() {
     super({ key: "GameScene" });
   }
 
   create(data?: { room: any; networkManager: NetworkManager; sessionId: string }): void {
+    // Reset all state from previous session
+    this.gridRenderer = null;
+    this.hudManager = null;
+    this.room = null;
+    this.localSessionId = "";
+    this.currentDirection = "";
+    this.currentTileCost = 10;
+    this.absorbedPlayerIds = new Set();
+    this.playerNameCache = new Map();
+    this.gameEnded = false;
+    this.connectingText = null;
+    this.hintPopupElements = [];
+    this.placingCollector = false;
+    this.placingDefenseBot = false;
+    this.spawnTilesRegistered = false;
+
     if (data?.room && data?.networkManager) {
       // Came from LobbyScene with an existing connection
       this.room = data.room;
@@ -76,6 +98,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   private setupStateListener(): void {
+    // Listen for battle flash broadcasts
+    this.room.onMessage("battleFlash", (data: { x: number; y: number; attackerId: string }) => {
+      if (!this.gridRenderer) return;
+      const localPlayer = this.room.state?.players?.get(this.localSessionId);
+      const isAttacker = localPlayer && (localPlayer.id === data.attackerId || localPlayer.teamId === data.attackerId);
+      const flashColor = isAttacker
+        ? ((localPlayer?.color ?? -1) >= 0 ? localPlayer!.color : 0xffd700)
+        : 0xffffff;
+      this.gridRenderer.playMineFlash(data.x, data.y, flashColor);
+    });
+
     this.room.onStateChange((state: any) => {
       // On first state change with valid grid: initialize renderer and HUD
       if (!this.gridRenderer && state.gridWidth > 0) {
@@ -99,6 +132,15 @@ export class GameScene extends Phaser.Scene {
         };
         this.hudManager.onUpgradeDefense = () => {
           this.networkManager.sendUpgradeDefense();
+        };
+        this.hudManager.onUpgradeCollection = () => {
+          this.networkManager.sendUpgradeCollection();
+        };
+        this.hudManager.onCollectorClick = () => {
+          this.placingCollector = true;
+        };
+        this.hudManager.onDefenseBotClick = () => {
+          this.placingDefenseBot = true;
         };
       }
 
@@ -127,6 +169,15 @@ export class GameScene extends Phaser.Scene {
         };
         this.hudManager.onUpgradeDefense = () => {
           this.networkManager.sendUpgradeDefense();
+        };
+        this.hudManager.onUpgradeCollection = () => {
+          this.networkManager.sendUpgradeCollection();
+        };
+        this.hudManager.onCollectorClick = () => {
+          this.placingCollector = true;
+        };
+        this.hudManager.onDefenseBotClick = () => {
+          this.placingDefenseBot = true;
         };
       }
       this.onStateUpdate(state);
@@ -207,14 +258,47 @@ export class GameScene extends Phaser.Scene {
         effectivePlayer.defense,
         effectivePlayer.tileCount,
         factoryCount,
-        state.players.get(this.localSessionId)?.isTeamLead
+        state.players.get(this.localSessionId)?.isTeamLead,
+        effectivePlayer.collection
       );
 
       // Calculate upgrade costs
       const attackCost = 50 * effectivePlayer.attack;
       const defenseCost = 50 * effectivePlayer.defense;
-      this.hudManager.updateUpgradeCosts(attackCost, defenseCost);
+      const collectionCost = 50 * (effectivePlayer.collection || 0);
+      this.hudManager.updateUpgradeCosts(attackCost, defenseCost, collectionCost);
+      this.currentTileCost = Math.floor(10 * (1 + 0.02 * effectivePlayer.tileCount));
       this.hudManager.updateTeamName(effectivePlayer.teamName || "");
+
+      // Update collector icons above identity line
+      let placedCount = 0;
+      try {
+        const collectors = JSON.parse(effectivePlayer.collectorsJSON || "[]");
+        placedCount = collectors.length;
+
+        // Update grid renderer with collector positions
+        this.gridRenderer!.clearCollectorTiles();
+        for (const c of collectors) {
+          this.gridRenderer!.setCollectorTile(c.x, c.y);
+        }
+      } catch { /* ignore parse errors */ }
+      this.hudManager.updateCollectors(effectivePlayer.collection || 0, placedCount);
+
+      // Update defense bot positions on grid renderer
+      let placedDefBots = 0;
+      try {
+        const defenseBots: { x: number; y: number }[] = JSON.parse(effectivePlayer.defenseBotsJSON || "[]");
+        placedDefBots = defenseBots.length;
+
+        // Build a map of tile -> bot count for the renderer
+        const defBotCounts = new Map<string, number>();
+        for (const b of defenseBots) {
+          const key = `${b.x},${b.y}`;
+          defBotCounts.set(key, (defBotCounts.get(key) ?? 0) + 1);
+        }
+        this.gridRenderer!.setDefenseBotData(defBotCounts);
+      } catch { /* ignore parse errors */ }
+      this.hudManager.updateDefenseBots(effectivePlayer.defense || 0, placedDefBots);
 
       // Update player identity below grid
       const localP = state.players.get(this.localSessionId);
@@ -227,11 +311,21 @@ export class GameScene extends Phaser.Scene {
 
     // Build leaderboard from non-absorbed players
     const leaderboardData: { id: string; tileCount: number }[] = [];
+    const teamStats: { name: string; tiles: number; attack: number; defense: number; collection: number; factories: number; scrap: number }[] = [];
     state.players.forEach((player: any, key: string) => {
       if (!player.absorbed) {
-        leaderboardData.push({ id: player.teamName || `${player.nameAdj} ${player.nameNoun}`.trim() || key.slice(0, 10), tileCount: player.tileCount });
+        const name = player.teamName || `${player.nameAdj} ${player.nameNoun}`.trim() || key.slice(0, 10);
+        leaderboardData.push({ id: name, tileCount: player.tileCount });
+        let fCount = 0;
+        state.tiles.forEach((t: any) => { if (t.isSpawn && t.ownerId === (player.id || key)) fCount++; });
+        teamStats.push({
+          name, tiles: player.tileCount, attack: player.attack,
+          defense: player.defense, collection: player.collection ?? 0,
+          factories: fCount, scrap: player.resources,
+        });
       }
     });
+    this.hudManager.updateTeamStats(teamStats);
     this.hudManager.updateLeaderboard(
       leaderboardData,
       state.timeRemaining,
@@ -288,7 +382,11 @@ export class GameScene extends Phaser.Scene {
       this.currentDirection
     );
 
-    this.gridRenderer.highlightClaimable(filtered, this.currentDirection);
+    // Read local player color for highlight tinting
+    const localPlayer = state.players.get(this.localSessionId);
+    const playerColor = (localPlayer?.color ?? -1) >= 0 ? localPlayer!.color : 0xffcc44;
+
+    this.gridRenderer.highlightClaimable(filtered, this.currentDirection, this.currentTileCost, playerColor);
   }
 
   private detectAbsorptions(state: any): void {
@@ -342,6 +440,20 @@ export class GameScene extends Phaser.Scene {
     const gridPos = this.gridRenderer.pixelToGrid(pointer.x, pointer.y);
     if (!gridPos) return;
 
+    // If in collector placement mode, place a collector instead of normal action
+    if (this.placingCollector) {
+      this.placingCollector = false;
+      this.networkManager.sendPlaceCollector(gridPos.x, gridPos.y);
+      return;
+    }
+
+    // If in defense bot placement mode, place a defense bot
+    if (this.placingDefenseBot) {
+      this.placingDefenseBot = false;
+      this.networkManager.sendPlaceDefenseBot(gridPos.x, gridPos.y);
+      return;
+    }
+
     // Check tile state for gear handling
     let tileHasGear = false;
     let tileOwnerId = "";
@@ -353,14 +465,19 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    if (tileOwnerId === "" || tileOwnerId !== effectiveId) {
-      // Unclaimed or enemy tile — try to claim it first
+    if (tileOwnerId === "") {
+      // Unclaimed tile — try to claim it
       this.networkManager.sendClaimTile(gridPos.x, gridPos.y);
+    } else if (tileOwnerId !== effectiveId) {
+      // Enemy tile — initiate attack
+      this.networkManager.sendAttackTile(gridPos.x, gridPos.y);
     }
 
     if (tileHasGear && (tileOwnerId === "" || tileOwnerId === effectiveId)) {
       // Optimistic mine flash before sending network message
-      this.gridRenderer!.playMineFlash(gridPos.x, gridPos.y);
+      const localPlayer = this.room.state.players.get(this.localSessionId);
+      const mineFlashColor = (localPlayer?.color ?? -1) >= 0 ? localPlayer!.color : 0xffd700;
+      this.gridRenderer!.playMineFlash(gridPos.x, gridPos.y, mineFlashColor);
       this.networkManager.sendMineGear(gridPos.x, gridPos.y);
     }
   }
@@ -427,7 +544,6 @@ export class GameScene extends Phaser.Scene {
       .setDepth(200);
 
     // Winner announcement
-    const winnerNoun = winnerName.split(" ").pop() || winnerName;
     this.add
       .text(400, 220, "GAME OVER", {
         fontSize: "40px",
@@ -438,10 +554,12 @@ export class GameScene extends Phaser.Scene {
       .setDepth(201);
 
     this.add
-      .text(400, 280, `${winnerNoun} wins with ${maxTiles} tiles!`, {
-        fontSize: "20px",
+      .text(400, 280, `${winnerName} wins with ${maxTiles} tiles!`, {
+        fontSize: "18px",
         color: "#e0a030",
         fontFamily: "monospace",
+        wordWrap: { width: 600 },
+        align: "center",
       })
       .setOrigin(0.5)
       .setDepth(201);
@@ -470,10 +588,11 @@ export class GameScene extends Phaser.Scene {
 
   private createHintButton(): void {
     const btn = this.add
-      .text(20, 555, "💡", {
-        fontSize: "24px",
+      .text(10, GAME_HEIGHT - 12, "💡 Help", {
+        fontSize: "18px",
         fontFamily: "monospace",
       })
+      .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
       .setDepth(100);
 
@@ -507,11 +626,14 @@ export class GameScene extends Phaser.Scene {
     this.hintPopupElements.push(title);
 
     const controls = [
-      "Click tile      → Claim / Mine gear",
-      "Arrow keys      → Set expansion direction",
-      "Same arrow      → Clear direction",
-      "Escape          → Clear direction",
-      "⚔ ATK / 🛡 DEF  → Upgrade (costs scrap)",
+      "Click neutral    → Claim tile (costs scrap)",
+      "Click gear ⚙️    → Mine scrap",
+      "Click enemy tile → Attack (team lead only)",
+      "⚔️ ATK Bot       → Max additional simultaneous attacks",
+      "🛡️ DEF Bot       → Buy defense bot",
+      "Click 🛡️ then tile → Place +5 defense (max 4)",
+      "⚙️ COL Bot       → Buy collector",
+      "Click ⚒ then tile → Place automine",
     ].join("\n");
 
     const body = this.add

@@ -94,3 +94,46 @@ Items that have been implemented and verified.
 - [x] ecosystem.config.js + @colyseus/tools integration
 - [x] GitHub Pages site with itch.io embed
 - [x] build:prod script with auto-zip
+
+## v0.5.1 Additions
+
+- [x] Visual feedback (graphic/animation) whenever scrap is generated — clicks or auto
+
+## v0.5.2 — Issue Sync
+
+- [x] Non-host players sometimes don't transition from lobby to game (gameStarted broadcast)
+- [x] Gear mining animates with gold flash on click
+- [x] Absorbed players' tiles transferred to absorber on absorption
+- [x] Ensure absorbed players can reliably click tiles and mine gears for their team
+- [x] Switch client to prod server URL and build for production (build:prod script)
+- [x] Property-based tests — 15 property test files covering correctness properties
+- [x] Game end screen shows correct winner with full team name
+- [x] Color persistence after absorption (your team stays your color)
+- [x] Sanitize player names before broadcast (strip control chars)
+- [x] Gear respawn — 20-second delay then 1 gear/sec on unclaimed tiles
+- [x] Scrap piles default to 1000 and configurable in server config (50, 100, 500, 1000, 2000)
+- [x] Cost-to-capture shown on each claimable tile before clicking
+- [x] ATK and DEF re-themed as "ATK Bots", "DEF Bots", added "COL Bots" (UI only)
+- [x] Cancel/back button on host lobby page — return to menu without starting
+- [x] Connection error handling — error popup with auto-kick to menu after 5 seconds
+- [x] Hint button on game screen — 💡 quick popup with controls summary
+- [x] Server config button in host lobby — ⚙ CONFIG with time limit, match format, gear scrap, AI players
+- [x] Server config: match format — single match, best of 3, best of 5 with auto-rematch
+- [x] Server config: AI players — host can add up to 4 AI with color picker and 🤖 icon
+- [x] AI player naming — household items with "roid" suffix (35+ nouns), no duplicates
+- [x] Reroll button discoverability — "reroll" label next to ♻
+- [x] Game config in host lobby — timer, match format, gear scrap, AI players
+- [x] Rematch / new round — series match with resetForNextRound()
+
+## v0.5.3 — Issue Sync
+
+- [x] Decide min/max players — 10 or 20 configurable in server config
+- [x] Add Valokor to GitHub contributors — listed in README and About popup
+- [x] Rate limiting on tile claims, upgrades, and gear mining (prevent click spam)
+- [x] Gear mining flash animation uses the player's own color
+- [x] Claimable tile outlines use the player's own color
+- [x] Playtest with 4+ players and tune border conflict pressure formula
+- [x] Deploy Colyseus server to us-ord-ef0ec457.colyseus.cloud
+- [x] Deploy client build to itch.io as jam submission
+- [x] Test full flow on itch.io (create game, join by code, play, end screen)
+- [x] Rate-limit player clicks on scrap piles to 5–10/sec

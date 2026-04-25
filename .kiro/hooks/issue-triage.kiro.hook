@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "name": "Issue Triage",
+  "description": "When triggered, scan all issue tracking files and move tasks to the correct file based on tags: items marked [x] or tagged 'cpt' go to completed.md, 'bl' to backlog.md, 'cpr' to core-priorities.md, 'nth' to nice-to-haves.md, 'bug' to known-bugs.md, 'rej' to rejected.md. Clean up duplicates across files.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Read ALL files in the issue_tracking/ directory (completed.md, rejected.md, known-bugs.md, core-priorities.md, nice-to-haves.md, backlog.md). For each task line:\n\n- look at code and see if this has been implemented, if so → mark item [x]   \n- if any two items are mutually exclusive (disregard rejected.md or marked as [rej]), prompt user which to keep and which to mark as rejected.  \n\nAfter marking, call Issue Sync Hook\n"
+  },
+  "workspaceFolderName": "GameJam2026",
+  "shortName": "issue-triage"
+}

@@ -12,6 +12,16 @@ const PLAYER_COLORS: number[] = [
   0x8b4513, // rusty iron (brick)
   0xdbe4eb, // chromium
   0x36454f, // tungsten
+  0xcda434, // brass
+  0x2eb8a6, // verdigris
+  0xe8a0bf, // rose gold
+  0x5c6670, // gunmetal
+  0xa8a495, // nickel
+  0xc44b2f, // oxidized iron
+  0x4682b4, // titanium blue
+  0xff6b35, // molten
+  0xe6e0d4, // palladium
+  0x6b4226, // dark bronze
 ];
 
 const NEUTRAL_COLOR = 0x3a3a3a;
@@ -20,12 +30,19 @@ const HIGHLIGHT_COLOR = 0xffcc44;
 const HIGHLIGHT_DIRECTION_COLOR = 0xffee88;
 const ABSORPTION_FLASH_COLOR = 0xffffff;
 
-/** Padding around the grid area in pixels */
-const GRID_PADDING = 10;
-
 /** Game area dimensions (matching Phaser config) */
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
+
+/**
+ * Layout margins — the grid is constrained to the area between these edges
+ * so HUD panels never overlap the playfield.
+ */
+const LEFT_MARGIN = 140;   // stats panel width
+const RIGHT_MARGIN = 140;  // leaderboard + purchase bot panel width
+const TOP_MARGIN = 8;      // small top gap
+const BOTTOM_MARGIN = 50;  // identity text + bot icons
+const GRID_PADDING = 4;    // breathing room inside the margins
 
 export class GridRenderer {
   private scene: Phaser.Scene;
@@ -38,24 +55,52 @@ export class GridRenderer {
   private playerColorMap: Map<string, number> = new Map();
   private nextColorIndex = 0;
 
+  /**
+   * Brighten a hex color by blending each RGB channel toward 255.
+   * @param color  Numeric hex color (e.g. 0x36454f)
+   * @param amount How far to blend toward white (0.0–1.0, default 0.3)
+   * @returns      Brightened numeric hex color
+   */
+  static brightenColor(color: number, amount: number = 0.3): number {
+    const r = (color >> 16) & 0xff;
+    const g = (color >> 8) & 0xff;
+    const b = color & 0xff;
+
+    const newR = Math.min(255, Math.max(0, Math.floor(r + (255 - r) * amount)));
+    const newG = Math.min(255, Math.max(0, Math.floor(g + (255 - g) * amount)));
+    const newB = Math.min(255, Math.max(0, Math.floor(b + (255 - b) * amount)));
+
+    return (newR << 16) | (newG << 8) | newB;
+  }
+
+  /** Returns "#000000" or "#ffffff" depending on which has better contrast against the given color */
+  static contrastTextColor(color: number): string {
+    const r = (color >> 16) & 0xff;
+    const g = (color >> 8) & 0xff;
+    const b = color & 0xff;
+    // Perceived luminance (ITU-R BT.601)
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    return luminance > 150 ? "#000000" : "#ffffff";
+  }
+
   constructor(scene: Phaser.Scene, gridWidth: number, gridHeight: number) {
     this.scene = scene;
     this.gridWidth = gridWidth;
     this.gridHeight = gridHeight;
     this.graphics = scene.add.graphics();
 
-    // Calculate tile size to fit the grid within the game area with padding
-    const availableWidth = GAME_WIDTH - GRID_PADDING * 2;
-    const availableHeight = GAME_HEIGHT - GRID_PADDING * 2;
+    // Available area for the grid after reserving space for HUD panels
+    const availableWidth = GAME_WIDTH - LEFT_MARGIN - RIGHT_MARGIN - GRID_PADDING * 2;
+    const availableHeight = GAME_HEIGHT - TOP_MARGIN - BOTTOM_MARGIN - GRID_PADDING * 2;
     this.tileSize = Math.floor(
       Math.min(availableWidth / gridWidth, availableHeight / gridHeight)
     );
 
-    // Center the grid in the game area
+    // Center the grid within the available area
     const totalGridWidth = this.tileSize * gridWidth;
     const totalGridHeight = this.tileSize * gridHeight;
-    this.offsetX = Math.floor((GAME_WIDTH - totalGridWidth) / 2);
-    this.offsetY = Math.floor((GAME_HEIGHT - totalGridHeight) / 2);
+    this.offsetX = LEFT_MARGIN + GRID_PADDING + Math.floor((availableWidth - totalGridWidth) / 2);
+    this.offsetY = TOP_MARGIN + GRID_PADDING + Math.floor((availableHeight - totalGridHeight) / 2);
   }
 
   /** Set a player's color (from lobby selection) */
@@ -89,6 +134,11 @@ export class GridRenderer {
   private spawnIcons: Phaser.GameObjects.Text[] = [];
   private gearTiles: Set<string> = new Set();
   private gearIcons: Phaser.GameObjects.Text[] = [];
+  private costLabels: Phaser.GameObjects.Text[] = [];
+  private collectorTiles: Set<string> = new Set();
+  private collectorIcons: Phaser.GameObjects.Text[] = [];
+  private defenseIcons: Phaser.GameObjects.Text[] = [];
+  private defenseBotCounts: Map<string, number> = new Map();
 
   /** Mark a tile as having a gear decoration */
   setGearTile(x: number, y: number): void {
@@ -103,6 +153,21 @@ export class GridRenderer {
   /** Mark a tile as a spawn point */
   setSpawnTile(x: number, y: number): void {
     this.spawnTiles.add(`${x},${y}`);
+  }
+
+  /** Mark a tile as having a collector (⚒) */
+  setCollectorTile(x: number, y: number): void {
+    this.collectorTiles.add(`${x},${y}`);
+  }
+
+  /** Clear all collector tile markers */
+  clearCollectorTiles(): void {
+    this.collectorTiles.clear();
+  }
+
+  /** Update defense bot counts per tile */
+  setDefenseBotData(counts: Map<string, number>): void {
+    this.defenseBotCounts = counts;
   }
 
   /**
@@ -121,8 +186,27 @@ export class GridRenderer {
     this.graphics.lineStyle(1, GRID_LINE_COLOR, 1);
     this.graphics.strokeRect(px, py, this.tileSize, this.tileSize);
 
-    // Draw factory icon on spawn tiles
-    if (this.spawnTiles.has(`${x},${y}`) && ownerId !== "") {
+    // Draw defense indicator on owned tiles (shield behind, number in front)
+    if (ownerId !== "" && this.tileSize >= 16) {
+      const botCount = this.defenseBotCounts.get(`${x},${y}`) ?? 0;
+      const tileDefense = 5 + botCount * 5;
+      const numSize = Math.max(8, Math.floor(this.tileSize * 0.385));
+      const textColor = GridRenderer.contrastTextColor(color);
+
+      const defLabel = this.scene.add
+        .text(px + this.tileSize / 2, py + 2, `${tileDefense}🛡`, {
+          fontSize: `${numSize}px`,
+          color: textColor,
+          fontFamily: "monospace",
+        })
+        .setOrigin(0.5, 0)
+        .setAlpha(0.7)
+        .setDepth(3);
+      this.defenseIcons.push(defLabel);
+    }
+
+    // Draw factory icon on spawn tiles (even if unclaimed)
+    if (this.spawnTiles.has(`${x},${y}`)) {
       const fontSize = Math.max(6, Math.floor(this.tileSize * 0.5));
       const icon = this.scene.add
         .text(px + this.tileSize / 2, py + this.tileSize / 2, "🏭", {
@@ -135,15 +219,27 @@ export class GridRenderer {
 
     // Draw gear icon on gear tiles (only if has remaining scrap and unclaimed or no owner)
     if (this.gearTiles.has(`${x},${y}`)) {
-      const gearSize = Math.max(6, Math.floor(this.tileSize * 0.5));
+      const gearSize = Math.max(6, Math.floor(this.tileSize * 0.35));
       const gearIcon = this.scene.add
-        .text(px + this.tileSize / 2, py + this.tileSize / 2, "⚙", {
+        .text(px + this.tileSize / 2, py + this.tileSize / 2, "⚙️", {
           fontSize: `${gearSize}px`,
-          color: "#888888",
         })
         .setOrigin(0.5)
         .setDepth(4);
       this.gearIcons.push(gearIcon);
+    }
+
+    // Draw collector icon (⚒) on tiles with placed collectors
+    if (this.collectorTiles.has(`${x},${y}`)) {
+      const colSize = Math.max(6, Math.floor(this.tileSize * 0.4));
+      const colIcon = this.scene.add
+        .text(px + this.tileSize * 0.75, py + this.tileSize * 0.25, "⚒", {
+          fontSize: `${colSize}px`,
+          color: "#ffcc44",
+        })
+        .setOrigin(0.5)
+        .setDepth(6);
+      this.collectorIcons.push(colIcon);
     }
 
     if (animate) {
@@ -152,14 +248,15 @@ export class GridRenderer {
   }
 
   /** Play a gold flash animation on a gear tile being mined */
-  playMineFlash(gridX: number, gridY: number): void {
+  playMineFlash(gridX: number, gridY: number, playerColor?: number): void {
     const { px, py } = this.gridToPixel(gridX, gridY);
+    const flashColor = playerColor ?? 0xffd700;
     const flash = this.scene.add.rectangle(
       px + this.tileSize / 2,
       py + this.tileSize / 2,
       this.tileSize,
       this.tileSize,
-      0xffd700,
+      flashColor,
       0.6
     );
     flash.setDepth(10);
@@ -204,15 +301,41 @@ export class GridRenderer {
    */
   highlightClaimable(
     tiles: { x: number; y: number }[],
-    direction: string
+    direction: string,
+    tileCost?: number,
+    playerColor?: number
   ): void {
+    const baseColor = playerColor !== undefined ? playerColor : HIGHLIGHT_COLOR;
+    const brightColor = playerColor !== undefined
+      ? GridRenderer.brightenColor(playerColor)
+      : HIGHLIGHT_DIRECTION_COLOR;
+    const costColorStr = playerColor !== undefined
+      ? `#${playerColor.toString(16).padStart(6, "0")}`
+      : "#ffcc44";
+
     for (const tile of tiles) {
       const { px, py } = this.gridToPixel(tile.x, tile.y);
       const isBright = this.isTileInDirection(tile, direction);
-      const color = isBright ? HIGHLIGHT_DIRECTION_COLOR : HIGHLIGHT_COLOR;
+      const color = isBright ? brightColor : baseColor;
 
       this.graphics.lineStyle(2, color, isBright ? 1 : 0.6);
       this.graphics.strokeRect(px + 1, py + 1, this.tileSize - 2, this.tileSize - 2);
+
+      // Show cost on claimable tiles (only if tile is large enough)
+      if (tileCost !== undefined && this.tileSize >= 16) {
+        const fontSize = Math.max(8, Math.floor(this.tileSize * 0.385));
+        const costColor = GridRenderer.contrastTextColor(NEUTRAL_COLOR);
+        const costText = this.scene.add
+          .text(px + this.tileSize / 2, py + this.tileSize - 2, `-${tileCost}⚙️`, {
+            fontSize: `${fontSize}px`,
+            color: costColor,
+            fontFamily: "monospace",
+          })
+          .setOrigin(0.5, 1)
+          .setAlpha(0.7)
+          .setDepth(3);
+        this.costLabels.push(costText);
+      }
     }
   }
 
@@ -299,5 +422,11 @@ export class GridRenderer {
     this.spawnIcons = [];
     this.gearIcons.forEach((icon) => icon.destroy());
     this.gearIcons = [];
+    this.collectorIcons.forEach((icon) => icon.destroy());
+    this.collectorIcons = [];
+    this.defenseIcons.forEach((icon) => icon.destroy());
+    this.defenseIcons = [];
+    this.costLabels.forEach((label) => label.destroy());
+    this.costLabels = [];
   }
 }

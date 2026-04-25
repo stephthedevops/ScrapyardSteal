@@ -168,8 +168,6 @@ export class MenuScene extends Phaser.Scene {
   private showAboutPopup(): void {
     const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.7)
       .setDepth(200).setInteractive();
-    const box = this.add.rectangle(400, 280, 360, 260, 0x1a1a2e, 0.95)
-      .setDepth(201).setStrokeStyle(2, 0x3a3a2a);
     const title = this.add.text(400, 180, "SCRAPYARD STEAL", {
       fontSize: "18px", color: "#ffcc44", fontFamily: "monospace",
     }).setOrigin(0.5).setDepth(202);
@@ -178,9 +176,12 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(202);
     const team = this.add.text(400, 250, [
       "Team:",
-      "  Steph Hicks",
-      "  Nathan Engert",
-      "  Valokor",
+      "  Steph Hicks (Felar)",
+      "  Nathan Engert (Valokor)",
+      "",
+      "QA:",
+      "  Evan Kuhlmann",
+      "  Pete Wanamaker",
       "",
       "github.com/stephthedevops/ScrapyardSteal",
       "",
@@ -189,7 +190,12 @@ export class MenuScene extends Phaser.Scene {
       fontSize: "11px", color: "#e0a030", fontFamily: "monospace",
       align: "center", lineSpacing: 3,
     }).setOrigin(0.5, 0).setDepth(202);
-    const closeBtn = this.add.text(400, 380, "[CLOSE]", {
+    const closeBtnY = team.y + team.height + 20;
+    const boxHeight = (closeBtnY + 20) - 160;
+    const boxCenterY = 160 + boxHeight / 2;
+    const box = this.add.rectangle(400, boxCenterY, 360, boxHeight, 0x1a1a2e, 0.95)
+      .setDepth(201).setStrokeStyle(2, 0x3a3a2a);
+    const closeBtn = this.add.text(400, closeBtnY, "[CLOSE]", {
       fontSize: "13px", color: "#ffcc44", fontFamily: "monospace",
     }).setOrigin(0.5).setDepth(202).setInteractive({ useHandCursor: true });
     closeBtn.on("pointerdown", () => {

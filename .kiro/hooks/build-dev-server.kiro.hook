@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Build & Dev Server",
+  "description": "Builds the project with tsc, then starts the Vite dev server and the Colyseus game server in development mode.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Run `npm run build` to compile TypeScript. If it succeeds, start `npm run dev` (Vite client) and `npm run server:dev` (Colyseus server) as background processes using controlBashProcess. Report the URLs and any errors."
+  }
+}

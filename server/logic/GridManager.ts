@@ -89,10 +89,10 @@ export function assignStartingPositions(
 
 /**
  * Calculates the grid size (both width and height) for a given player count.
- * Formula: ceil(30 * sqrt(playerCount / 10))
+ * Formula: 10 + playerCount, clamped to [12, 20].
  */
 export function calculateGridSize(playerCount: number): number {
-  return Math.ceil(30 * Math.sqrt(playerCount / 10));
+  return Math.min(20, Math.max(12, 10 + playerCount));
 }
 
 /**

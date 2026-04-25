@@ -20,7 +20,10 @@ export class Player extends Schema {
   @type("boolean") isHost: boolean = false;
   @type("number") resources: number = 0;
   @type("number") attack: number = 1;
-  @type("number") defense: number = 1;
+  @type("number") defense: number = 0;
+  @type("string") defenseBotsJSON: string = "[]";
+  @type("number") collection: number = 0;
+  @type("string") collectorsJSON: string = "[]";
   @type("number") tileCount: number = 1;
   @type("boolean") absorbed: boolean = false;
   @type("string") direction: string = "";
@@ -42,4 +45,6 @@ export class GameState extends Schema {
   @type("string") matchFormat: string = "single";
   @type("number") roundNumber: number = 1;
   @type("string") seriesScoresJSON: string = "{}";
+  @type("number") gearScrapSupply: number = 1000;
+  @type("number") maxPlayers: number = 10;
 }

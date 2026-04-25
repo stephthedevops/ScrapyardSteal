@@ -165,6 +165,15 @@ We use a lightweight markdown-based issue tracking system in [`issue_tracking/`]
 
 See [`issue_tracking/00_README.md`](issue_tracking/00_README.md) for how to add items, tag for triage, and assign work.
 
+## 👥 Team
+
+| Name | Role |
+|------|------|
+| Steph Hicks (Felar) | Developer |
+| Nathan Engert (Valokor) | Developer |
+| Evan Kuhlmann | Software Quality Engineer |
+| Pete Wanamaker | Software Quality Engineer |
+
 ## 📄 License
 
 MIT
