@@ -137,3 +137,15 @@ Items that have been implemented and verified.
 - [x] Deploy client build to itch.io as jam submission
 - [x] Test full flow on itch.io (create game, join by code, play, end screen)
 - [x] Rate-limit player clicks on scrap piles to 5–10/sec
+
+## v0.5.4 — Issue Sync (Code Audit)
+
+- [x] Attack Bots: click an opponent's tile to assault it over several seconds (battleTick system)
+- [x] Number of Attack Bots limits how many tiles you can assault simultaneously
+- [x] Defense Bots: select your own tiles to place defense (🛡 placement system)
+- [x] Number of Defense Bots limits how many tiles can be protected at once
+- [x] Visual indicator on defended tiles (defense value + 🛡 shown on tile)
+- [x] Improved Defenses upgrade: defense bots increase time opponents need to capture tiles
+- [x] Improved Attackers upgrade: attack pressure reduces capture time
+- [x] Improved Scrap Collection upgrade: COL Bots auto-mine scrap on placed tiles
+- [x] Capturing additional scrap piles should auto-generate 1 scrap/sec each (via COL Bot automine)
