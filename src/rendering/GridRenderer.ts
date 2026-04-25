@@ -73,6 +73,16 @@ export class GridRenderer {
     return (newR << 16) | (newG << 8) | newB;
   }
 
+  /** Returns "#000000" or "#ffffff" depending on which has better contrast against the given color */
+  static contrastTextColor(color: number): string {
+    const r = (color >> 16) & 0xff;
+    const g = (color >> 8) & 0xff;
+    const b = color & 0xff;
+    // Perceived luminance (ITU-R BT.601)
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    return luminance > 150 ? "#000000" : "#ffffff";
+  }
+
   constructor(scene: Phaser.Scene, gridWidth: number, gridHeight: number) {
     this.scene = scene;
     this.gridWidth = gridWidth;
@@ -180,30 +190,23 @@ export class GridRenderer {
     if (ownerId !== "" && this.tileSize >= 16) {
       const botCount = this.defenseBotCounts.get(`${x},${y}`) ?? 0;
       const tileDefense = 5 + botCount * 5;
-      const shieldSize = Math.max(6, Math.floor(this.tileSize * 0.22));
-      const shieldIcon = this.scene.add
-        .text(px + this.tileSize / 2, py + 2, "🛡", {
-          fontSize: `${shieldSize}px`,
-        })
-        .setOrigin(0.5, 0)
-        .setAlpha(0.35)
-        .setDepth(2);
-      this.defenseIcons.push(shieldIcon);
+      const numSize = Math.max(8, Math.floor(this.tileSize * 0.385));
+      const textColor = GridRenderer.contrastTextColor(color);
 
       const defLabel = this.scene.add
-        .text(px + this.tileSize / 2, py + 2, `${tileDefense}`, {
-          fontSize: `${shieldSize}px`,
-          color: "#ffffff",
+        .text(px + this.tileSize / 2, py + 2, `${tileDefense}🛡`, {
+          fontSize: `${numSize}px`,
+          color: textColor,
           fontFamily: "monospace",
         })
         .setOrigin(0.5, 0)
-        .setAlpha(0.5)
+        .setAlpha(0.7)
         .setDepth(3);
       this.defenseIcons.push(defLabel);
     }
 
-    // Draw factory icon on spawn tiles
-    if (this.spawnTiles.has(`${x},${y}`) && ownerId !== "") {
+    // Draw factory icon on spawn tiles (even if unclaimed)
+    if (this.spawnTiles.has(`${x},${y}`)) {
       const fontSize = Math.max(6, Math.floor(this.tileSize * 0.5));
       const icon = this.scene.add
         .text(px + this.tileSize / 2, py + this.tileSize / 2, "🏭", {
@@ -216,7 +219,7 @@ export class GridRenderer {
 
     // Draw gear icon on gear tiles (only if has remaining scrap and unclaimed or no owner)
     if (this.gearTiles.has(`${x},${y}`)) {
-      const gearSize = Math.max(6, Math.floor(this.tileSize * 0.5));
+      const gearSize = Math.max(6, Math.floor(this.tileSize * 0.35));
       const gearIcon = this.scene.add
         .text(px + this.tileSize / 2, py + this.tileSize / 2, "⚙️", {
           fontSize: `${gearSize}px`,
@@ -320,11 +323,12 @@ export class GridRenderer {
 
       // Show cost on claimable tiles (only if tile is large enough)
       if (tileCost !== undefined && this.tileSize >= 16) {
-        const fontSize = Math.max(6, Math.floor(this.tileSize * 0.22));
+        const fontSize = Math.max(8, Math.floor(this.tileSize * 0.385));
+        const costColor = GridRenderer.contrastTextColor(NEUTRAL_COLOR);
         const costText = this.scene.add
-          .text(px + this.tileSize / 2, py + this.tileSize - 2, `-${tileCost}`, {
+          .text(px + this.tileSize / 2, py + this.tileSize - 2, `-${tileCost}⚙️`, {
             fontSize: `${fontSize}px`,
-            color: costColorStr,
+            color: costColor,
             fontFamily: "monospace",
           })
           .setOrigin(0.5, 1)

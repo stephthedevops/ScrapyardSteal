@@ -48,13 +48,13 @@ const PAGES: TutorialPage[] = [
   {
     title: "Bots & Upgrades",
     lines: [
-      "⚔️ ATK Bot — Used to attack enemy tiles.",
-      "🛡 DEF Bot — Place on your tiles for +5 defense each.",
+      "⚔️ ATK Bot — Max additional tiles attackable at once.",
+      "🛡️ DEF Bot — Place on your tiles for +5 defense each.",
       "  Up to 4 per tile. Permanent once placed.",
-      "⚙ COL Bot — Place on tiles to auto-mine or earn income.",
+      "⚙️ COL Bot — Place on tiles to auto-mine or earn income.",
       "",
       "All bots cost 50 × current count of that type.",
-      "Only the team lead can buy upgrades.",
+      "ATK bots: team lead only. DEF/COL: anyone.",
     ],
   },
   {
@@ -104,9 +104,22 @@ const PAGES: TutorialPage[] = [
       "Your adjective stacks onto the team name:",
       '  "Turbo Hydraulic Otterbot"',
       "",
-      "Team members can click to claim and mine,",
-      "but only the lead can spend scrap on upgrades.",
+      "Lose your factory? You're demoted to non-leader.",
       "The absorber gets 25% of your scrap as a bonus.",
+    ],
+  },
+  {
+    title: "Roles & Permissions",
+    lines: [
+      "Action          Lead  Member",
+      "─────────────────────────────",
+      "Buy ⚔️ ATK Bots   ✅     ❌",
+      "Attack tiles     ✅     ❌",
+      "Buy 🛡️ DEF Bots   ✅     ✅",
+      "Buy ⚙️ COL Bots   ✅     ✅",
+      "Place bots       ✅     ✅",
+      "Claim tiles      ✅     ✅",
+      "Mine gears       ✅     ✅",
     ],
   },
   {

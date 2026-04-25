@@ -627,12 +627,12 @@ export class GameScene extends Phaser.Scene {
 
     const controls = [
       "Click neutral    → Claim tile (costs scrap)",
-      "Click gear       → Mine scrap",
+      "Click gear ⚙️    → Mine scrap",
       "Click enemy tile → Attack (team lead only)",
-      "⚔️ ATK Bot       → Buy attack bot",
-      "🛡 DEF Bot       → Buy defense bot",
-      "Click 🛡 then tile → Place +5 defense (max 4)",
-      "⚙ COL Bot       → Buy collector",
+      "⚔️ ATK Bot       → Max additional simultaneous attacks",
+      "🛡️ DEF Bot       → Buy defense bot",
+      "Click 🛡️ then tile → Place +5 defense (max 4)",
+      "⚙️ COL Bot       → Buy collector",
       "Click ⚒ then tile → Place automine",
     ].join("\n");
 

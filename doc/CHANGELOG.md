@@ -2,7 +2,7 @@
 
 All notable changes to Scrapyard Steal.
 
-## [0.6.0] — 2026-04-24
+## [0.6.0] — 2026-04-25
 
 ### Added
 - Manual combat system — team leaders click enemy border tiles to initiate attacks; no more automatic border conflict
@@ -12,34 +12,56 @@ All notable changes to Scrapyard Steal.
 - Defense bot repair — 50% chance a lost defense bot is returned as unplaced when a threshold is crossed
 - Attacker attrition — every 5 damage dealt, 50% chance the attacker loses an attack bot
 - Defense bot HUD icons — clickable 🛡 icons for placing unplaced defense bots (mirrors collector placement flow)
-- `attackTile` message handler and `sendAttackTile` network method
-- `placeDefenseBot` message handler and `sendPlaceDefenseBot` network method
+- Deathmatch mode — infinite time option (☠ Death), game ends only when one team remains
+- Full-screen Stats popup — 📊 Stats button replaces always-visible leaderboard, shows all team stats (tiles, ATK, DEF, COL, factories, scrap)
+- Timer display in right gutter (shows countdown or "☠ DEATHMATCH")
+- AI players now initiate attacks on enemy border tiles (up to ATK bot count simultaneous attacks)
+- Battle flash animations — attacker sees their color, all other players see white flash
+- Attack pressure determines battle tick damage: `factories + floor(attackBots / activeBattles)`
+- Simultaneous attack limit: 1 (leader) + ATK bot count
+- Role-based permissions — non-leaders can buy/place DEF and COL bots, only leaders can buy ATK bots and attack
+- Factory loss demotion — losing all factories sets player to non-leader, cancels active battles
+- "Roles & Permissions" tutorial page with lead vs member action table
+- `attackTile` and `placeDefenseBot` message handlers with corresponding network methods
 - `defenseBotsJSON` field on Player schema for tracking placed defense bot positions
 - `battleFlash` broadcast message for attack animations on all clients
-- Colorful emoji icons — gear (⚙️) and attack (⚔️) now use emoji presentation for color rendering
-- "💡 Help" label on the in-game hint button (was just 💡)
+- Colorful emoji icons — gear (⚙️), attack (⚔️), shield (🛡️), COL (⚙️) now use emoji presentation
+- Inline emoji on tile labels — defense shows "5🛡" and cost shows "-10⚙️"
+- "💡 Help" label on the in-game hint button, moved to bottom-left
 
 ### Changed
-- Attack pressure formula changed to `(5 × factories) + (5 × ATK bots)` — no longer based on border tile count
+- Attack pressure formula changed to `factories + floor(attackBots / activeBattles)` — scales with concentration
 - Mining no longer uses attack stat — extraction is now `5 × factories owned`
 - Defense is now per-tile (base 5 + placed bots) instead of a flat player stat multiplied by border tiles
 - Player defense stat starts at 0 (was 1) — represents unplaced defense bots available
 - Border conflict removed from automatic game tick — combat is now player-initiated
-- `resolveBorder` accepts optional `tileDefenseMap` and `pressureOverrides` for the new combat model
-- `calculateBorderPressure` replaced by `calculateAttackPressure(factories, attackBots)`
 - Absorbed player tiles become unclaimed (neutral) instead of transferring to the absorber
-- Scrap cost label on claimable tiles — smaller font, positioned at bottom of tile with minus sign prefix, rendered behind gear icon
-- About menu close button positioned dynamically below text content (no longer overlaps)
+- Grid size formula changed to `10 + playerCount`, clamped to [12, 20]
+- Scrap cost label on claimable tiles — smaller font, bottom of tile, minus sign prefix, behind gear icon
+- Purchase bot panel moved to bottom-right gutter (vertical stack below stats button)
+- Leaderboard replaced with Stats button + full-screen popup with all team data
+- About menu close button positioned dynamically below text content
 - About menu version now reads from package.json correctly (v0.6.0)
-- Server config panel — all buttons reduced from 32px to 24px height, AI entries render in two columns
-- DONE button on config panel shrunk from 40px to 32px
-- Tutorial fully rewritten (11 pages) — new pages for Attacking, Defending, and updated Bots & Upgrades
-- In-game hint popup updated for new combat controls and removed direction key references
+- Server config panel — buttons reduced to 24px height, AI entries in two columns, Deathmatch option added
+- Lobby player list renders in 3 columns, names tinted in player's chosen color
+- Reroll button moved above color picker with 🎲 icon ("🎲 Reroll Name")
+- Tutorial fully rewritten (13 pages) — new pages for Attacking, Defending, Bots & Upgrades, Roles & Permissions
+- In-game hint popup updated for click-to-attack controls with colorful emoji icons
+- Gear icon shrunk to 35% of tile size (was 50%) to prevent clipping
+- Tile number labels 175% larger with automatic black/white contrast based on tile color
+- Factory icon renders on unclaimed spawn tiles (was hidden when neutral)
 - Growth direction feature removed from tutorial (functionality removal tracked in backlog)
 
 ### Fixed
-- About menu `[CLOSE]` link no longer overlaps text content — dynamically positioned below body text
+- About menu `[CLOSE]` link no longer overlaps text content
 - About menu showing wrong version (was 0.5.0, now correctly shows 0.6.0)
+- Claimable tile outlines not rendering (caused by removed leaderboard fields crashing state update)
+- Lobby scene not resetting state on re-entry after a game (stale `transitioned` flag)
+- GameScene not resetting state on re-entry (stale `gameEnded`, `spawnTilesRegistered` flags)
+- Battle tick interval not being started (was declared but never initialized)
+- Client never sending `attackTile` message (click handler only sent `claimTile`)
+- AI players attacking without owning a factory
+- Factory icon not rendering on unclaimed spawn tiles
 
 ## [0.5.1] — 2025-04-22
 

@@ -119,10 +119,9 @@ export class GameRoom extends Room<GameState> {
       if (this.state.phase !== "active") return;
       if (!this.checkRateLimit(client.sessionId, "upgradeAttack")) return;
       const player = this.state.players.get(client.sessionId);
-      if (!player || player.absorbed) return;
+      if (!player || player.absorbed || !player.isTeamLead) return;
 
-      const cost = calculateUpgradeCost(player.attack);
-      if (player.resources < cost) return;
+      const cost = calculateUpgradeCost(player.attack);      if (player.resources < cost) return;
       if (player.attack >= 50) return; // max cap
 
       player.resources -= cost;
@@ -199,6 +198,13 @@ export class GameRoom extends Room<GameState> {
       // Only team leaders can attack
       if (!player.isTeamLead) return;
 
+      // Must own at least one factory to attack
+      let hasFactory = false;
+      this.state.tiles.forEach((t) => {
+        if (t.isSpawn && t.ownerId === player.id) hasFactory = true;
+      });
+      if (!hasFactory) return;
+
       // Bounds check
       if (data.x < 0 || data.x >= this.state.gridWidth || data.y < 0 || data.y >= this.state.gridHeight) return;
 
@@ -214,9 +220,16 @@ export class GameRoom extends Room<GameState> {
 
       const key = `${data.x},${data.y}`;
 
-      // If already being attacked by this player, ignore
+      // If this specific tile is already being attacked by this player, ignore
       const existing = this.activeBattles.get(key);
       if (existing && existing.attackerId === player.id) return;
+
+      // Limit simultaneous attacks to 1 (team leader) + ATK bot count
+      let activeBattleCount = 0;
+      for (const [, battle] of this.activeBattles) {
+        if (battle.attackerId === player.id) activeBattleCount++;
+      }
+      if (activeBattleCount >= 1 + player.attack) return;
 
       // Calculate tile's current defense: base 5 + 5 per defense bot on this tile
       const defender = this.state.players.get(tile.ownerId);
@@ -808,24 +821,42 @@ export class GameRoom extends Room<GameState> {
         leader.defense += 1;
       }
 
-      // Try to attack an enemy border tile (if not already attacking one)
-      let alreadyAttacking = false;
-      for (const [, battle] of this.activeBattles) {
-        if (battle.attackerId === leader.id) { alreadyAttacking = true; break; }
+      // Try to attack enemy border tiles — only if leader with a factory
+      let hasFactory = false;
+      for (const t of ownedTiles) {
+        if (t.isSpawn) { hasFactory = true; break; }
       }
 
-      if (!alreadyAttacking && leader.attack > 0) {
-        // Find enemy tiles adjacent to our territory
+      if (!hasFactory || !leader.isTeamLead) return;
+
+      let aiActiveBattles = 0;
+      for (const [, battle] of this.activeBattles) {
+        if (battle.attackerId === leader.id) aiActiveBattles++;
+      }
+
+      if (aiActiveBattles < 1 + leader.attack) {
+        // Find enemy tiles adjacent to our territory (exclude already-attacked tiles)
+        const attackedKeys = new Set<string>();
+        for (const [, battle] of this.activeBattles) {
+          if (battle.attackerId === leader.id) {
+            attackedKeys.add(`${battle.tileX},${battle.tileY}`);
+          }
+        }
+
         const enemyBorderTiles: Tile[] = [];
         for (const t of this.state.tiles) {
           if (t.ownerId === "" || t.ownerId === leader.id) continue;
+          if (attackedKeys.has(`${t.x},${t.y}`)) continue;
           if (isAdjacent(t.x, t.y, ownedTiles)) {
             enemyBorderTiles.push(t);
           }
         }
 
-        if (enemyBorderTiles.length > 0) {
-          const target = enemyBorderTiles[Math.floor(Math.random() * enemyBorderTiles.length)];
+        // Start as many new attacks as ATK slots allow
+        const slotsAvailable = 1 + leader.attack - aiActiveBattles;
+        const toAttack = enemyBorderTiles.slice(0, slotsAvailable);
+
+        for (const target of toAttack) {
           const key = `${target.x},${target.y}`;
 
           // Calculate tile defense
@@ -961,13 +992,26 @@ export class GameRoom extends Room<GameState> {
       const defender = this.state.players.get(tile.ownerId);
       if (!defender) { toRemove.push(key); continue; }
 
-      // Reduce defense by 1
-      const prevDefense = battle.currentDefense;
-      battle.currentDefense -= 1;
-      battle.damageDealt += 1;
+      // Calculate attack pressure: factories + floor(attackBots / activeBattles)
+      let attackerFactories = 0;
+      for (const t of this.state.tiles) {
+        if (t.isSpawn && t.ownerId === battle.attackerId) attackerFactories++;
+      }
+      let attackerBattleCount = 0;
+      for (const [, b] of this.activeBattles) {
+        if (b.attackerId === battle.attackerId) attackerBattleCount++;
+      }
+      const damage = Math.max(1, calculateAttackPressure(attackerFactories, attacker.attack, attackerBattleCount));
 
-      // Every 5 damage dealt, 50% chance attacker loses an attack bot
-      if (battle.damageDealt % 5 === 0 && Math.random() < 0.5) {
+      // Reduce defense by pressure amount
+      const prevDefense = battle.currentDefense;
+      battle.currentDefense -= damage;
+      battle.damageDealt += damage;
+
+      // Every 5 cumulative damage dealt, 50% chance attacker loses an attack bot
+      const prevThreshold5 = Math.floor((battle.damageDealt - damage) / 5);
+      const newThreshold5 = Math.floor(battle.damageDealt / 5);
+      if (newThreshold5 > prevThreshold5 && Math.random() < 0.5) {
         if (attacker.attack > 0) {
           attacker.attack -= 1;
         }
@@ -1003,6 +1047,25 @@ export class GameRoom extends Room<GameState> {
         tile.ownerId = "";
 
         if (defender) defender.tileCount -= 1;
+
+        // If the lost tile was a factory, check if defender still has any factories
+        if (tile.isSpawn && defender && !defender.absorbed) {
+          let hasFactory = false;
+          this.state.tiles.forEach((t) => {
+            if (t.isSpawn && t.ownerId === defenderId) hasFactory = true;
+          });
+          if (!hasFactory) {
+            // Demote to non-leader — can no longer attack or buy upgrades
+            defender.isTeamLead = false;
+
+            // Cancel all active battles initiated by this player
+            for (const [bKey, bVal] of this.activeBattles) {
+              if (bVal.attackerId === defenderId) {
+                toRemove.push(bKey);
+              }
+            }
+          }
+        }
 
         // Remove all defense bots from the fallen tile
         let defenseBots: { x: number; y: number }[] = [];

@@ -91,14 +91,17 @@ export function findBorders(
 }
 
 /**
- * Calculates attack pressure for a player.
- * Pressure = (5 × factories) + (5 × attack bots).
+ * Calculates attack pressure (damage per battle tick).
+ * Pressure = factories + floor(attackBots / activeBattles).
+ * Minimum 1 if the player has any factories or bots.
  */
 export function calculateAttackPressure(
   factories: number,
-  attackBots: number
+  attackBots: number,
+  activeBattles: number = 1
 ): number {
-  return 5 * factories + 5 * attackBots;
+  const battles = Math.max(1, activeBattles);
+  return factories + Math.floor(attackBots / battles);
 }
 
 /**

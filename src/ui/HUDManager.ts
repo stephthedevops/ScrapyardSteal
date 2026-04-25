@@ -188,7 +188,7 @@ export class HUDManager {
     this.defenseButton = this.createUpgradeButton(
       botPanelX,
       botPanelTopY + 70,
-      "🛡 DEF Bot",
+      "🛡️ DEF Bot",
       this.defenseCostText,
       () => this.onUpgradeDefense?.()
     );
@@ -196,7 +196,7 @@ export class HUDManager {
     this.collectionButton = this.createUpgradeButton(
       botPanelX,
       botPanelTopY + 110,
-      "⚙ COL Bot",
+      "⚙️ COL Bot",
       this.collectionCostText,
       () => this.onUpgradeCollection?.()
     );
