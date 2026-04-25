@@ -17,6 +17,17 @@ import {
 import { generateAIName } from "../logic/aiNames";
 import { sanitizeName } from "../logic/sanitize";
 
+// Allowed color palette — first 10 are base, next 10 are extended (20-player mode)
+export const BASE_COLORS = [
+  0xb87333, 0x4a8a5e, 0xffd700, 0x8b5a2b, 0x7a3ea0,
+  0x0047ab, 0xff00ff, 0xff3b30, 0xdbe4eb, 0x36454f,
+];
+export const EXTENDED_COLORS = [
+  0xcda434, 0x00e5ff, 0xe8a0bf, 0x5c6670, 0xa8a495,
+  0xff375f, 0x4682b4, 0xff6b35, 0x32d74b, 0x6b4226,
+];
+export const ALL_COLORS = [...BASE_COLORS, ...EXTENDED_COLORS];
+
 export class GameRoom extends Room<GameState> {
   maxClients = 20;
   private gameLoopInterval: ReturnType<typeof this.clock.setInterval> | null = null;
@@ -29,6 +40,9 @@ export class GameRoom extends Room<GameState> {
 
   /** Active battles: key = "x,y" of the tile being attacked, value = battle info */
   private activeBattles: Map<string, { attackerId: string; tileX: number; tileY: number; currentDefense: number; damageDealt: number }> = new Map();
+
+  /** Pending absorption timers: key = playerId, value = clock timeout reference */
+  private pendingTimers: Map<string, ReturnType<typeof this.clock.setTimeout>> = new Map();
 
   /** Rate limiting: track last action timestamp per player per action type */
   private lastActionTime: Map<string, Map<string, number>> = new Map();
@@ -52,6 +66,8 @@ export class GameRoom extends Room<GameState> {
   static shortCodeMap = new Map<string, string>();
   /** Set of shortCodes that are public and waiting */
   static publicRooms = new Set<string>();
+  /** Track player counts per shortCode for the public list endpoint */
+  static playerCounts = new Map<string, number>();
 
   private static generateShortCode(): string {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 to avoid confusion
@@ -83,6 +99,7 @@ export class GameRoom extends Room<GameState> {
       if (!this.checkRateLimit(client.sessionId, "claimTile")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
+      if (player.pendingAbsorption) return;
 
       // Determine the team leader — if absorbed, act on behalf of team leader
       let leader = player;
@@ -91,6 +108,7 @@ export class GameRoom extends Room<GameState> {
         if (!teamLeader || teamLeader.absorbed) return;
         leader = teamLeader;
       }
+      if (leader.pendingAbsorption) return;
 
       const { x, y } = data;
 
@@ -113,6 +131,58 @@ export class GameRoom extends Room<GameState> {
       leader.resources -= cost;
       tile.ownerId = leader.id;
       leader.tileCount += 1;
+
+      // Factory adjective transfer — when claiming a spawn tile
+      if (tile.isSpawn) {
+        // Find the original owner of this spawn tile
+        let originalOwner: Player | undefined;
+        this.state.players.forEach((p) => {
+          if (p.spawnX === x && p.spawnY === y && p.id !== leader.id) {
+            originalOwner = p;
+          }
+        });
+
+        if (originalOwner && originalOwner.absorbed) {
+          const adjToTransfer = originalOwner.nameAdj;
+          if (adjToTransfer) {
+            // Remove the adjective from the team that currently holds the absorbed player
+            const currentTeamLeaderId = originalOwner.teamId;
+            const currentTeamLeader = this.state.players.get(currentTeamLeaderId);
+            if (currentTeamLeader && currentTeamLeaderId !== leader.id) {
+              // Remove the adjective from the current team's name
+              const adjPattern = adjToTransfer + " ";
+              if (currentTeamLeader.teamName.includes(adjPattern)) {
+                currentTeamLeader.teamName = currentTeamLeader.teamName.replace(adjPattern, "");
+                // Update all team members
+                this.state.players.forEach((p) => {
+                  if (p.teamId === currentTeamLeaderId) {
+                    p.teamName = currentTeamLeader.teamName;
+                  }
+                });
+              }
+            }
+
+            // Transfer the absorbed player to the claiming team
+            originalOwner.teamId = leader.id;
+            
+            // Prepend the adjective to the claiming team's name
+            leader.teamName = `${adjToTransfer} ${leader.teamName}`;
+            originalOwner.teamName = leader.teamName;
+            // Update all team members
+            this.state.players.forEach((p) => {
+              if (p.teamId === leader.id && p.id !== leader.id) {
+                p.teamName = leader.teamName;
+              }
+            });
+          }
+
+          // Broadcast factory capture
+          this.broadcast("factoryCaptured", {
+            claimingTeamName: leader.teamName,
+            factoryAdj: adjToTransfer,
+          });
+        }
+      }
     });
 
     this.onMessage("upgradeAttack", (client) => {
@@ -120,6 +190,7 @@ export class GameRoom extends Room<GameState> {
       if (!this.checkRateLimit(client.sessionId, "upgradeAttack")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player || player.absorbed || !player.isTeamLead) return;
+      if (player.pendingAbsorption) return;
 
       const cost = calculateUpgradeCost(player.attack);      if (player.resources < cost) return;
       if (player.attack >= 50) return; // max cap
@@ -133,6 +204,7 @@ export class GameRoom extends Room<GameState> {
       if (!this.checkRateLimit(client.sessionId, "upgradeDefense")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player || player.absorbed) return;
+      if (player.pendingAbsorption) return;
 
       const cost = calculateUpgradeCost(player.defense);
       if (player.resources < cost) return;
@@ -155,6 +227,7 @@ export class GameRoom extends Room<GameState> {
       if (!this.checkRateLimit(client.sessionId, "placeDefenseBot")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
+      if (player.pendingAbsorption) return;
 
       // Determine the team leader
       let leader = player;
@@ -163,6 +236,7 @@ export class GameRoom extends Room<GameState> {
         if (!teamLeader || teamLeader.absorbed) return;
         leader = teamLeader;
       }
+      if (leader.pendingAbsorption) return;
 
       // Bounds check
       if (data.x < 0 || data.x >= this.state.gridWidth || data.y < 0 || data.y >= this.state.gridHeight) return;
@@ -194,6 +268,7 @@ export class GameRoom extends Room<GameState> {
       if (!this.checkRateLimit(client.sessionId, "attackTile")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player || player.absorbed) return;
+      if (player.pendingAbsorption) return;
 
       // Only team leaders can attack
       if (!player.isTeamLead) return;
@@ -259,6 +334,7 @@ export class GameRoom extends Room<GameState> {
       if (!this.checkRateLimit(client.sessionId, "upgradeCollection")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player || player.absorbed) return;
+      if (player.pendingAbsorption) return;
 
       const cost = calculateUpgradeCost(player.collection);
       if (player.resources < cost) return;
@@ -281,6 +357,7 @@ export class GameRoom extends Room<GameState> {
       if (!this.checkRateLimit(client.sessionId, "placeCollector")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
+      if (player.pendingAbsorption) return;
 
       // Determine the team leader
       let leader = player;
@@ -289,6 +366,7 @@ export class GameRoom extends Room<GameState> {
         if (!teamLeader || teamLeader.absorbed) return;
         leader = teamLeader;
       }
+      if (leader.pendingAbsorption) return;
 
       // Bounds check
       if (data.x < 0 || data.x >= this.state.gridWidth || data.y < 0 || data.y >= this.state.gridHeight) return;
@@ -316,23 +394,13 @@ export class GameRoom extends Room<GameState> {
       leader.collectorsJSON = JSON.stringify(collectors);
     });
 
-    this.onMessage("setDirection", (client, data: { direction: string }) => {
-      if (this.state.phase !== "active") return;
-      const player = this.state.players.get(client.sessionId);
-      if (!player || player.absorbed) return;
-
-      const validDirections = ["north", "south", "east", "west", ""];
-      if (!validDirections.includes(data.direction)) return;
-
-      player.direction = data.direction;
-    });
-
     // Mine scrap from a gear tile
     this.onMessage("mineGear", (client, data: { x: number; y: number }) => {
       if (this.state.phase !== "active") return;
       if (!this.checkRateLimit(client.sessionId, "mineGear")) return;
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
+      if (player.pendingAbsorption) return;
 
       // Determine the team leader
       let leader = player;
@@ -341,6 +409,7 @@ export class GameRoom extends Room<GameState> {
         if (!teamLeader || teamLeader.absorbed) return;
         leader = teamLeader;
       }
+      if (leader.pendingAbsorption) return;
 
       // Bounds check
       if (data.x < 0 || data.x >= this.state.gridWidth || data.y < 0 || data.y >= this.state.gridHeight) return;
@@ -348,8 +417,8 @@ export class GameRoom extends Room<GameState> {
       const tile = this.state.tiles.find((t) => t.x === data.x && t.y === data.y);
       if (!tile || !tile.hasGear || tile.gearScrap <= 0) return;
 
-      // Only mine if tile is unclaimed or owned by the team leader
-      if (tile.ownerId !== "" && tile.ownerId !== leader.id) return;
+      // Only mine if tile is owned by the team leader
+      if (tile.ownerId !== leader.id) return;
 
       // Count factories (spawn tiles) owned by the team leader
       let factoryCount = 0;
@@ -448,17 +517,6 @@ export class GameRoom extends Room<GameState> {
       }
     });
 
-    // Allowed color palette — first 10 are base, next 10 are extended (20-player mode)
-    const BASE_COLORS = [
-      0xb87333, 0x4a8a5e, 0xffd700, 0x8a8a7a, 0x7a3ea0,
-      0x0047ab, 0xff00ff, 0x8b4513, 0xdbe4eb, 0x36454f,
-    ];
-    const EXTENDED_COLORS = [
-      0xcda434, 0x2eb8a6, 0xe8a0bf, 0x5c6670, 0xa8a495,
-      0xc44b2f, 0x4682b4, 0xff6b35, 0xe6e0d4, 0x6b4226,
-    ];
-    const ALL_COLORS = [...BASE_COLORS, ...EXTENDED_COLORS];
-
     /** Get the currently allowed colors based on maxPlayers setting */
     const getAllowedColors = () => {
       return this.state.maxPlayers >= 20 ? ALL_COLORS : BASE_COLORS;
@@ -531,14 +589,9 @@ export class GameRoom extends Room<GameState> {
       this.state.players.forEach((p) => { if (p.isAI) aiCount++; });
       if (aiCount >= 4) return;
 
-      // Validate color is in allowed palette
-      const allowedColors = getAllowedColors();
-      if (!allowedColors.includes(data.color)) return;
-
-      // Check if color is already taken
-      let colorTaken = false;
-      this.state.players.forEach((p) => { if (p.color === data.color) colorTaken = true; });
-      if (colorTaken) return;
+      // Auto-assign color from the allowed palette
+      const aiColor = this.getNextAvailableColor();
+      if (aiColor === -1) return; // no colors available
 
       // Generate AI name avoiding duplicates
       const taken = this.getTakenNames();
@@ -548,7 +601,7 @@ export class GameRoom extends Room<GameState> {
       const player = new Player();
       player.id = aiId;
       player.isAI = true;
-      player.color = data.color;
+      player.color = aiColor;
       player.nameAdj = aiName.adj;
       player.nameNoun = aiName.noun;
       player.teamName = `${aiName.adj} ${aiName.noun}`;
@@ -564,6 +617,64 @@ export class GameRoom extends Room<GameState> {
       const player = this.state.players.get(data.aiPlayerId);
       if (!player || !player.isAI) return;
       this.state.players.delete(data.aiPlayerId);
+    });
+
+    // Player responds to capture choice (surrender or drop)
+    this.onMessage("captureResponse", (client, data: { choice: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      if (!player.pendingAbsorption) return;
+
+      // Validate choice
+      if (data.choice !== "surrender" && data.choice !== "drop") return;
+
+      this.resolveCapture(client.sessionId, data.choice as "surrender" | "drop");
+    });
+
+    // Player voluntarily leaves — convert to AI takeover
+    this.onMessage("leaveGame", (client) => {
+      if (this.state.phase !== "active") return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      // Append "roid" to the noun (e.g. "Falconbot" → "Falconbotroid")
+      player.nameNoun = player.nameNoun + "roid";
+      player.teamName = `${player.nameAdj} ${player.nameNoun}`;
+
+      // Update team members' names if this player is a team lead
+      if (player.isTeamLead) {
+        this.state.players.forEach((p) => {
+          if (p.teamId === player.id && p.id !== player.id) {
+            p.teamName = player.teamName;
+          }
+        });
+      }
+
+      // Convert to AI — the game loop's AI tick will take over
+      const aiId = `ai_${client.sessionId}`;
+      player.id = aiId;
+      player.isAI = true;
+      player.teamId = player.absorbed ? player.teamId : aiId;
+
+      // Re-map tiles to the new AI id
+      this.state.tiles.forEach((tile) => {
+        if (tile.ownerId === client.sessionId) {
+          tile.ownerId = aiId;
+        }
+      });
+
+      // Re-map team members pointing to this player
+      this.state.players.forEach((p) => {
+        if (p.teamId === client.sessionId) {
+          p.teamId = aiId;
+        }
+      });
+
+      // Move the player entry to the new AI key
+      this.state.players.delete(client.sessionId);
+      this.state.players.set(aiId, player);
+
+      console.log(`${client.sessionId} left voluntarily — AI takeover as ${aiId}`);
     });
   }
 
@@ -583,8 +694,8 @@ export class GameRoom extends Room<GameState> {
     player.defense = 0;
     player.tileCount = 1;
     player.absorbed = false;
-    player.direction = "";
     player.color = -1;
+    player.color = this.getNextAvailableColor();
     player.nameAdj = "";
     player.nameNoun = "";
     player.teamName = "";
@@ -597,6 +708,7 @@ export class GameRoom extends Room<GameState> {
     }
 
     this.state.players.set(client.sessionId, player);
+    GameRoom.playerCounts.set(this.state.shortCode, this.state.players.size);
     console.log(`${client.sessionId} joined (host: ${client.sessionId === this.hostId})`);
   }
 
@@ -616,7 +728,22 @@ export class GameRoom extends Room<GameState> {
       player.tileCount = 0;
     }
 
+    // If the leaving player is a captor for any pending player, resolve as "drop"
+    this.state.players.forEach((p) => {
+      if (p.pendingAbsorption && p.captorId === client.sessionId) {
+        this.resolveCapture(p.id, "drop");
+      }
+    });
+
+    // Also clear any pending timer for the leaving player themselves
+    const pendingTimer = this.pendingTimers.get(client.sessionId);
+    if (pendingTimer) {
+      pendingTimer.clear();
+      this.pendingTimers.delete(client.sessionId);
+    }
+
     this.state.players.delete(client.sessionId);
+    GameRoom.playerCounts.set(this.state.shortCode, this.state.players.size);
 
     // If the host left during waiting, assign a new host
     if (client.sessionId === this.hostId && this.state.phase === "waiting") {
@@ -641,9 +768,171 @@ export class GameRoom extends Room<GameState> {
       this.battleTickInterval.clear();
       this.battleTickInterval = null;
     }
+    // Clear all pending absorption timers
+    for (const [, timer] of this.pendingTimers) {
+      timer.clear();
+    }
+    this.pendingTimers.clear();
+
     GameRoom.shortCodeMap.delete(this.state.shortCode);
     GameRoom.publicRooms.delete(this.state.shortCode);
+    GameRoom.playerCounts.delete(this.state.shortCode);
     console.log("GameRoom disposed");
+  }
+
+  private enterPendingAbsorption(defenderId: string, captorId: string): void {
+    const defender = this.state.players.get(defenderId);
+    if (!defender) return;
+
+    const captor = this.state.players.get(captorId);
+    if (!captor) return;
+
+    // Set pending state
+    defender.pendingAbsorption = true;
+    defender.captorId = captorId;
+    defender.isTeamLead = false;
+
+    // Cancel all active battles where the pending player is the attacker
+    const toCancel: string[] = [];
+    for (const [key, battle] of this.activeBattles) {
+      if (battle.attackerId === defenderId) {
+        toCancel.push(key);
+      }
+    }
+    for (const key of toCancel) {
+      this.activeBattles.delete(key);
+    }
+
+    if (defender.isAI) {
+      // AI auto-surrenders after 2 seconds
+      const timer = this.clock.setTimeout(() => {
+        this.resolveCapture(defenderId, "surrender");
+      }, 2000);
+      this.pendingTimers.set(defenderId, timer);
+    } else {
+      // Send choice prompt to the human player's client
+      const client = this.clients.find(c => c.sessionId === defenderId);
+      if (client) {
+        client.send("captureChoice", {
+          captorTeamName: captor.teamName,
+          timeoutSeconds: 10,
+        });
+      }
+      // Start 10-second timeout — auto-resolves as "drop"
+      const timer = this.clock.setTimeout(() => {
+        this.resolveCapture(defenderId, "drop");
+      }, 10000);
+      this.pendingTimers.set(defenderId, timer);
+    }
+  }
+
+  private resolveCapture(pendingPlayerId: string, choice: "surrender" | "drop"): void {
+    // Clear the pending timer
+    const timer = this.pendingTimers.get(pendingPlayerId);
+    if (timer) {
+      timer.clear();
+      this.pendingTimers.delete(pendingPlayerId);
+    }
+
+    const pendingPlayer = this.state.players.get(pendingPlayerId);
+    if (!pendingPlayer || !pendingPlayer.pendingAbsorption) return;
+
+    const captorId = pendingPlayer.captorId;
+    const captor = this.state.players.get(captorId);
+
+    // If captor no longer exists or is absorbed, default to drop
+    if (!captor || captor.absorbed) {
+      choice = "drop";
+    }
+
+    if (choice === "surrender" && captor && !captor.absorbed) {
+      // Transfer all tiles to captor
+      let transferCount = 0;
+      this.state.tiles.forEach((tile) => {
+        if (tile.ownerId === pendingPlayerId) {
+          tile.ownerId = captorId;
+          transferCount++;
+        }
+      });
+      captor.tileCount += transferCount;
+      pendingPlayer.tileCount = 0;
+    } else {
+      // Drop all tiles as unclaimed
+      this.state.tiles.forEach((tile) => {
+        if (tile.ownerId === pendingPlayerId) {
+          tile.ownerId = "";
+        }
+      });
+      pendingPlayer.tileCount = 0;
+    }
+
+    // Award captor 25% bonus scrap
+    if (captor && !captor.absorbed) {
+      captor.resources += Math.floor(0.25 * pendingPlayer.resources);
+    }
+
+    // Send captureResolved to the pending player's client
+    const client = this.clients.find(c => c.sessionId === pendingPlayerId);
+    if (client) {
+      client.send("captureResolved", { result: choice });
+    }
+
+    // Finalize absorption
+    this.finalizeAbsorption(pendingPlayerId, captorId);
+  }
+
+  private finalizeAbsorption(pendingPlayerId: string, captorId: string): void {
+    const pendingPlayer = this.state.players.get(pendingPlayerId);
+    if (!pendingPlayer) return;
+
+    const captor = this.state.players.get(captorId);
+
+    // Set absorption state
+    pendingPlayer.absorbed = true;
+    pendingPlayer.pendingAbsorption = false;
+    pendingPlayer.teamId = captorId;
+    pendingPlayer.isTeamLead = false;
+
+    // Prepend absorbed player's adjective to captor's team name
+    if (captor) {
+      const absorbedAdj = pendingPlayer.nameAdj || pendingPlayer.teamName.split(" ").slice(0, -1).join(" ");
+      if (absorbedAdj) {
+        captor.teamName = `${absorbedAdj} ${captor.teamName}`;
+      }
+
+      // Update teamName for all players on the captor's team
+      pendingPlayer.teamName = captor.teamName;
+      this.state.players.forEach((p) => {
+        if (p.teamId === captorId && p.id !== captorId) {
+          p.teamName = captor.teamName;
+        }
+      });
+    }
+
+    // Clear defense bots and collectors
+    pendingPlayer.defenseBotsJSON = "[]";
+    pendingPlayer.collectorsJSON = "[]";
+
+    // Cancel any remaining battles involving the pending player
+    const toCancel: string[] = [];
+    for (const [key, battle] of this.activeBattles) {
+      if (battle.attackerId === pendingPlayerId) {
+        toCancel.push(key);
+      }
+      // Also cancel battles targeting tiles that were owned by the pending player
+      const tile = this.state.tiles.find((t) => t.x === battle.tileX && t.y === battle.tileY);
+      if (tile && tile.ownerId === "" && battle.attackerId !== captorId) {
+        // Tile was dropped/transferred, cancel stale battles
+        toCancel.push(key);
+      }
+    }
+    for (const key of toCancel) {
+      this.activeBattles.delete(key);
+    }
+
+    // Broadcast absorption notification
+    const absorbedName = `${pendingPlayer.nameAdj} ${pendingPlayer.nameNoun}`;
+    this.broadcast("notification", { message: `team absorbed ${absorbedName}` });
   }
 
   private getTakenNames(): { adjs: Set<string>; nouns: Set<string> } {
@@ -654,6 +943,19 @@ export class GameRoom extends Room<GameState> {
       if (p.nameNoun) nouns.add(p.nameNoun);
     });
     return { adjs, nouns };
+  }
+
+  /** Find the first color from the allowed palette not taken by any player. Returns -1 if all taken. */
+  private getNextAvailableColor(): number {
+    const allowedColors = this.state.maxPlayers >= 20 ? ALL_COLORS : BASE_COLORS;
+    const takenColors = new Set<number>();
+    this.state.players.forEach((p) => {
+      if (p.color >= 0) takenColors.add(p.color);
+    });
+    for (const color of allowedColors) {
+      if (!takenColors.has(color)) return color;
+    }
+    return -1;
   }
 
   private startGame() {
@@ -759,6 +1061,7 @@ export class GameRoom extends Room<GameState> {
     // 2. AI player actions — simulate clicking each tick
     this.state.players.forEach((player) => {
       if (!player.isAI) return;
+      if (player.pendingAbsorption) return;
 
       // Determine the effective leader — if absorbed, act for team leader
       let leader = player;
@@ -774,7 +1077,7 @@ export class GameRoom extends Room<GameState> {
       // Try to mine a gear first (on owned or unclaimed tiles adjacent to territory)
       for (const t of this.state.tiles) {
         if (!t.hasGear || t.gearScrap <= 0) continue;
-        if (t.ownerId !== "" && t.ownerId !== leader.id) continue;
+        if (t.ownerId !== leader.id) continue;
         if (t.ownerId === leader.id || isAdjacent(t.x, t.y, ownedTiles)) {
           let factoryCount = 0;
           ownedTiles.forEach((ot) => { if (ot.isSpawn) factoryCount++; });
@@ -885,6 +1188,7 @@ export class GameRoom extends Room<GameState> {
     // 5c. Automine — collectors placed on tiles automatically mine each tick
     this.state.players.forEach((player) => {
       if (player.absorbed) return;
+      if (player.pendingAbsorption) return;
 
       let collectors: { x: number; y: number }[] = [];
       try { collectors = JSON.parse(player.collectorsJSON); } catch { collectors = []; }
@@ -926,6 +1230,12 @@ export class GameRoom extends Room<GameState> {
           player.resources += 1 * multiplier;
         }
 
+        // Return collector to unplaced pool if tile has no gear and isn't a spawn
+        if (!tile.isSpawn && (!tile.hasGear || tile.gearScrap <= 0)) {
+          changed = true;
+          continue;
+        }
+
         remaining.push(c);
       }
 
@@ -938,7 +1248,9 @@ export class GameRoom extends Room<GameState> {
     if (this.gearRespawnCountdown > 0) {
       this.gearRespawnCountdown--;
     } else {
-      const gearIndices = spawnNewGears(this.state.tiles.toArray(), 1);
+      const activePlayers = Array.from(this.state.players.values()).filter(p => !p.absorbed && !p.pendingAbsorption).length;
+      const tilesArray = [...this.state.tiles].filter((t): t is Tile => t !== undefined);
+      const gearIndices = spawnNewGears(tilesArray, Math.max(1, activePlayers));
       for (const idx of gearIndices) {
         const tile = this.state.tiles[idx];
         if (tile) {
@@ -982,7 +1294,7 @@ export class GameRoom extends Room<GameState> {
 
       // If tile is no longer enemy-owned (already captured or changed), cancel battle
       const attacker = this.state.players.get(battle.attackerId);
-      if (!attacker || attacker.absorbed) { toRemove.push(key); continue; }
+      if (!attacker || attacker.absorbed || attacker.pendingAbsorption) { toRemove.push(key); continue; }
       if (tile.ownerId === "" || tile.ownerId === battle.attackerId) { toRemove.push(key); continue; }
 
       // Check attacker still has adjacent tiles
@@ -990,7 +1302,7 @@ export class GameRoom extends Room<GameState> {
       if (!isAdjacent(battle.tileX, battle.tileY, attackerTiles)) { toRemove.push(key); continue; }
 
       const defender = this.state.players.get(tile.ownerId);
-      if (!defender) { toRemove.push(key); continue; }
+      if (!defender || defender.pendingAbsorption || defender.absorbed) { toRemove.push(key); continue; }
 
       // Calculate attack pressure: factories + floor(attackBots / activeBattles)
       let attackerFactories = 0;
@@ -1079,45 +1391,9 @@ export class GameRoom extends Room<GameState> {
         // Remove any other battles targeting this tile
         toRemove.push(key);
 
-        // Check for absorption
-        if (defender.tileCount <= 0) {
-          defender.absorbed = true;
-          // Award bonus scrap
-          attacker.resources += Math.floor(0.25 * defender.resources);
-
-          // All defender's remaining tiles become unclaimed
-          this.state.tiles.forEach((t) => {
-            if (t.ownerId === defenderId) {
-              t.ownerId = "";
-              defender.tileCount = 0;
-            }
-          });
-
-          // Prepend absorbed player's adjective(s) to attacker's team name
-          const absorbedAdj = defender.nameAdj || defender.teamName.split(" ").slice(0, -1).join(" ");
-          if (absorbedAdj) {
-            attacker.teamName = `${absorbedAdj} ${attacker.teamName}`;
-          }
-
-          // Move absorbed player to attacker's team
-          defender.teamId = battle.attackerId;
-          defender.isTeamLead = false;
-          defender.teamName = attacker.teamName;
-
-          // Update all existing team members' teamName
-          this.state.players.forEach((p) => {
-            if (p.teamId === battle.attackerId && p.id !== battle.attackerId) {
-              p.teamName = attacker.teamName;
-            }
-          });
-
-          // Cancel all battles involving the absorbed player
-          for (const [bKey, bVal] of this.activeBattles) {
-            const bTile = this.state.tiles.find((t) => t.x === bVal.tileX && t.y === bVal.tileY);
-            if (bVal.attackerId === defenderId || (bTile && bTile.ownerId === "" && bVal.attackerId !== battle.attackerId)) {
-              toRemove.push(bKey);
-            }
-          }
+        // Check for absorption — enter pending state instead of instant absorption
+        if (defender.tileCount <= 0 && !defender.pendingAbsorption && !defender.absorbed) {
+          this.enterPendingAbsorption(defenderId, battle.attackerId);
         }
       }
     }
@@ -1262,7 +1538,6 @@ export class GameRoom extends Room<GameState> {
       player.collectorsJSON = "[]";
       player.tileCount = 1;
       player.absorbed = false;
-      player.direction = "";
       player.isTeamLead = true;
       player.teamId = player.id;
       player.teamName = `${player.nameAdj} ${player.nameNoun}`;

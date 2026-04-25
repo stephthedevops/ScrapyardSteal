@@ -8,7 +8,7 @@
   },
   "then": {
     "type": "askAgent",
-    "prompt": "Perform a full production build and deploy to Colyseus Cloud:\n\n1. Run `npm run build:prod` to build the client with the production Colyseus Cloud WebSocket URL and create dist.zip.\n2. Run `npm run server:build` to compile the server TypeScript for production.\n3. Run `npx @colyseus/cloud deploy --env production` to deploy to Colyseus Cloud production.\n\nReport the result of each step. If any step fails, stop and report the error."
+    "prompt": "Perform a full production build and deploy to Colyseus Cloud and Wavedash:\n\n1. Run `npm run build:prod` to build the client with the production Colyseus Cloud WebSocket URL and create dist.zip.\n2. Run `npm run server:build` to compile the server TypeScript for production.\n3. Run `npx @colyseus/cloud deploy --env production` to deploy to Colyseus Cloud production.\n4. Run `wavedash build push` to deploy the client build to Wavedash.\n\nReport the result of each step. If any step fails, stop and report the error."
   },
   "workspaceFolderName": "GameJam2026",
   "shortName": "build-run-app"

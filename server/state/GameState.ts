@@ -26,6 +26,8 @@ export class Player extends Schema {
   @type("string") collectorsJSON: string = "[]";
   @type("number") tileCount: number = 1;
   @type("boolean") absorbed: boolean = false;
+  @type("boolean") pendingAbsorption: boolean = false;
+  @type("string") captorId: string = "";
   @type("string") direction: string = "";
   @type("number") spawnX: number = -1;
   @type("number") spawnY: number = -1;

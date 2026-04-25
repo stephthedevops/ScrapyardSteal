@@ -140,6 +140,7 @@ Items that have been implemented and verified.
 
 ## v0.5.4 — Issue Sync (Code Audit)
 
+- [x] Balance pass on tile claim cost, upgrade costs, and income rate
 - [x] Attack Bots: click an opponent's tile to assault it over several seconds (battleTick system)
 - [x] Number of Attack Bots limits how many tiles you can assault simultaneously
 - [x] Defense Bots: select your own tiles to place defense (🛡 placement system)

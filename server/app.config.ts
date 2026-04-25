@@ -28,6 +28,18 @@ export default config({
       }
     });
 
+    app.get("/public/list", (_req: any, res: any) => {
+      const rooms: { code: string; roomId: string; playerCount: number }[] = [];
+      for (const code of GameRoom.publicRooms) {
+        const roomId = GameRoom.shortCodeMap.get(code);
+        if (roomId) {
+          const playerCount = GameRoom.playerCounts.get(code) ?? 0;
+          rooms.push({ code, roomId, playerCount });
+        }
+      }
+      res.json({ rooms });
+    });
+
     app.use("/colyseus", monitor());
 
     app.get("/", (_req: any, res: any) => {

@@ -17,6 +17,8 @@ export class MenuScene extends Phaser.Scene {
   private enterLobbyBtn!: Phaser.GameObjects.Container;
   private howToPlayBtn!: Phaser.GameObjects.Container;
   private quickPlayBtn!: Phaser.GameObjects.Container;
+  private publicGamesBtn!: Phaser.GameObjects.Container;
+  private publicGamesPopupElements: Phaser.GameObjects.GameObject[] = [];
 
   constructor() {
     super({ key: "MenuScene" });
@@ -51,6 +53,12 @@ export class MenuScene extends Phaser.Scene {
       this.scene.start("LobbyScene", { mode: "quickplay" });
     });
     this.quickPlayBtn.setAlpha(0).setVisible(false);
+
+    // Public Games button (hidden initially, shown in join mode)
+    this.publicGamesBtn = this.makeButton(400, 550, "PUBLIC GAMES", () => {
+      this.showPublicGamesPopup();
+    });
+    this.publicGamesBtn.setAlpha(0).setVisible(false);
 
     // Join mode elements (hidden initially)
     this.add.text(400, 220, "ENTER ROOM CODE:", {
@@ -138,6 +146,7 @@ export class MenuScene extends Phaser.Scene {
     this.joinBtn.setAlpha(0).setVisible(false);
     this.howToPlayBtn.setAlpha(0).setVisible(false);
     this.quickPlayBtn.setAlpha(1).setVisible(true);
+    this.publicGamesBtn.setAlpha(1).setVisible(true);
     (this.children.getByName("joinLabel") as Phaser.GameObjects.Text)?.setAlpha(1);
     this.roomCodeText.setAlpha(1);
     (this.children.getByName("pasteBtn") as Phaser.GameObjects.Text)?.setAlpha(1);
@@ -157,12 +166,132 @@ export class MenuScene extends Phaser.Scene {
     this.joinBtn.setAlpha(1).setVisible(true);
     this.howToPlayBtn.setAlpha(1).setVisible(true);
     this.quickPlayBtn.setAlpha(0).setVisible(false);
+    this.publicGamesBtn.setAlpha(0).setVisible(false);
   }
 
   private updateRoomCodeDisplay(): void {
     this.roomCodeText.setText(
       this.roomCodeInput.length === 0 ? "_ _ _ _ _" : this.roomCodeInput.split("").join(" ")
     );
+  }
+
+  private publicGamesContentElements: Phaser.GameObjects.GameObject[] = [];
+
+  private showPublicGamesPopup(): void {
+    // Don't open multiple popups
+    if (this.publicGamesPopupElements.length > 0) return;
+
+    const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.7)
+      .setDepth(200).setInteractive();
+    this.publicGamesPopupElements.push(overlay);
+
+    const box = this.add.rectangle(400, 300, 400, 350, 0x1a1a2e, 0.95)
+      .setDepth(201).setStrokeStyle(2, 0x3a3a2a);
+    this.publicGamesPopupElements.push(box);
+
+    const title = this.add.text(400, 150, "PUBLIC OPEN GAMES", {
+      fontSize: "18px", color: GOLD, fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(202);
+    this.publicGamesPopupElements.push(title);
+
+    const closeBtn = this.add.text(585, 140, "✕", {
+      fontSize: "18px", color: GOLD, fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(202).setInteractive({ useHandCursor: true });
+    this.publicGamesPopupElements.push(closeBtn);
+    closeBtn.on("pointerdown", () => this.dismissPublicGamesPopup());
+
+    const refreshBtn = this.add.text(230, 140, "↻", {
+      fontSize: "18px", color: GOLD, fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(202).setInteractive({ useHandCursor: true });
+    this.publicGamesPopupElements.push(refreshBtn);
+    refreshBtn.on("pointerover", () => refreshBtn.setColor("#ffffff"));
+    refreshBtn.on("pointerout", () => refreshBtn.setColor(GOLD));
+    refreshBtn.on("pointerdown", () => this.fetchPublicGames());
+
+    this.fetchPublicGames();
+  }
+
+  private fetchPublicGames(): void {
+    // Clear previous content rows
+    this.publicGamesContentElements.forEach((el) => {
+      if (el.active) el.destroy();
+    });
+    this.publicGamesContentElements = [];
+
+    const loadingText = this.add.text(400, 300, "Loading...", {
+      fontSize: "14px", color: AMBER, fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(202);
+    this.publicGamesContentElements.push(loadingText);
+
+    const serverUrl = (import.meta as any).env?.VITE_SERVER_URL || "ws://localhost:2567";
+    const httpUrl = serverUrl.replace("ws://", "http://").replace("wss://", "https://");
+
+    fetch(`${httpUrl}/public/list`)
+      .then((res) => res.json())
+      .then((data: { rooms: { code: string; roomId: string; playerCount: number }[] }) => {
+        if (loadingText.active) loadingText.destroy();
+
+        if (!data.rooms || data.rooms.length === 0) {
+          const noGames = this.add.text(400, 280, "No public games available.\nCreate one and toggle Public!", {
+            fontSize: "13px", color: AMBER, fontFamily: FONT, align: "center",
+          }).setOrigin(0.5).setDepth(202);
+          this.publicGamesContentElements.push(noGames);
+          return;
+        }
+
+        // Header row
+        const headerY = 185;
+        const hCode = this.add.text(260, headerY, "CODE", {
+          fontSize: "11px", color: GOLD, fontFamily: FONT,
+        }).setDepth(202);
+        const hPlayers = this.add.text(400, headerY, "PLAYERS", {
+          fontSize: "11px", color: GOLD, fontFamily: FONT,
+        }).setOrigin(0.5, 0).setDepth(202);
+        const hAction = this.add.text(520, headerY, "", {
+          fontSize: "11px", color: GOLD, fontFamily: FONT,
+        }).setDepth(202);
+        this.publicGamesContentElements.push(hCode, hPlayers, hAction);
+
+        // Room rows
+        data.rooms.forEach((room, idx) => {
+          const y = 215 + idx * 35;
+          if (y > 430) return; // don't overflow the box
+
+          const codeText = this.add.text(260, y, room.code, {
+            fontSize: "14px", color: AMBER, fontFamily: FONT,
+          }).setDepth(202);
+
+          const countText = this.add.text(400, y, `${room.playerCount}`, {
+            fontSize: "14px", color: AMBER, fontFamily: FONT,
+          }).setOrigin(0.5, 0).setDepth(202);
+
+          const joinText = this.add.text(520, y, "[JOIN]", {
+            fontSize: "14px", color: GOLD, fontFamily: FONT,
+          }).setDepth(202).setInteractive({ useHandCursor: true });
+          joinText.on("pointerover", () => joinText.setColor("#ffffff"));
+          joinText.on("pointerout", () => joinText.setColor(GOLD));
+          joinText.on("pointerdown", () => {
+            this.dismissPublicGamesPopup();
+            this.scene.start("LobbyScene", { mode: "join", roomId: room.code });
+          });
+
+          this.publicGamesContentElements.push(codeText, countText, joinText);
+        });
+      })
+      .catch(() => {
+        if (loadingText.active) loadingText.setText("Failed to load.\nCheck your connection.");
+      });
+  }
+
+  private dismissPublicGamesPopup(): void {
+    this.publicGamesContentElements.forEach((el) => {
+      if (el.active) el.destroy();
+    });
+    this.publicGamesContentElements = [];
+    this.publicGamesPopupElements.forEach((el) => {
+      if (el.active) el.destroy();
+    });
+    this.publicGamesPopupElements = [];
   }
 
   private showAboutPopup(): void {

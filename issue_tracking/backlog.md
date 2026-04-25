@@ -4,9 +4,6 @@ Post-jam features and improvements. Not blocking submission but worth building a
 
 ## Gameplay — V2
 
-- [ ] Factory capture choice — When a player's factory is claimed, give them the option to surrender their tiles to the captor or drop all tiles as unclaimed; broadcast "team absorbed [name]" only after the choice is made
-- [ ] Factory adjective transfer — When an absorbed player's spawn factory is unclaimed, the team that lost it loses the adjective associated with that factory's player; when another player claims that factory, they steal the player and its adjective
-- [ ] Factory capture broadcast — When an absorbed player's factory switches sides, broadcast "{claiming team} claimed the {switched player's adjective} Factory"
 - [ ] Attack types — Rock-paper-scissors style (piercing, area, sustained) with strengths and weaknesses
 - [ ] Multiple resource types — Add economic depth beyond single scrap resource
 - [ ] Movement — Allow machines to physically move across the grid
@@ -16,14 +13,13 @@ Post-jam features and improvements. Not blocking submission but worth building a
 
 ## Lobby & Social
 
-- [ ] Autopick colors — Automatically assign a unique color to each player when they enter the lobby
+- [ ] Chat in lobby — Simple text chat while waiting for game to start
 - [ ] Ready-up system — Players mark themselves ready, host can only start when all are ready
 - [ ] Chat in game — Quick emotes or short messages during play
 - [ ] Player profiles — Track wins, total tiles claimed, absorptions across sessions
 
 ## Visual & Audio
 
-- [ ] Shrink gear icon in scrap cost label — Reduce the size of the gear icon displayed in the scrap cost label for better visual balance
 - [ ] Machine sprites — Unique factory/machine art per player
 - [ ] Tile sprites — Replace colored rectangles with scrapyard tile art
 - [ ] Sound effects — Claim, upgrade, conflict, absorption, gear mine
@@ -34,7 +30,6 @@ Post-jam features and improvements. Not blocking submission but worth building a
 
 ## UX
 
-- [ ] Remove growth direction feature — remove arrow key direction steering, DirectionFilter logic, and server-side direction handling (no longer in tutorial or hint popup)
 - [ ] Mobile touch support — Tap to claim, pinch to zoom, swipe for direction
 - [ ] Reconnection handling — Rejoin a game in progress after disconnect
 - [ ] Keyboard shortcuts — Hotkeys for upgrade attack (A), upgrade defense (D)
@@ -61,5 +56,4 @@ Post-jam features and improvements. Not blocking submission but worth building a
 - [ ] Leaderboard sorts players array on every state change — cache sorted order
 - [ ] No object pooling for tween animations (absorption, claim effects)
 - [ ] No feedback on failed tile claim or upgrade (silent rejection)
-- [ ] No direction filter indicator on HUD (player doesn't know which direction is active)
 - [ ] No forfeit/leave button during game

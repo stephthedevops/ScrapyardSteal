@@ -51,9 +51,10 @@ describe("calculateUpgradeCost", () => {
   /**
    * **Validates: Requirements 1.3**
    */
-  it("3.3 returns 50 * currentStatValue for values 1 and 10", () => {
-    expect(calculateUpgradeCost(1)).toBe(50);
-    expect(calculateUpgradeCost(10)).toBe(500);
+  it("3.3 returns 50 + (5 * currentStatValue) for values 0, 1 and 10", () => {
+    expect(calculateUpgradeCost(0)).toBe(50);
+    expect(calculateUpgradeCost(1)).toBe(55);
+    expect(calculateUpgradeCost(10)).toBe(100);
   });
 });
 

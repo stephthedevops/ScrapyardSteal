@@ -4,5 +4,4 @@ Feedback from Nathan (Valokor) after playtesting over lunch. These are design pr
 
 ## ATK / DEF Rework
 
-- [ ] Neutral tiles should also require time to capture (~1s), requiring at least 1 Attack Bot
-- [ ] Progress bar / graphic when capturing a tile (show attack bot on tile)
+(All items triaged)

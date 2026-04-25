@@ -7,11 +7,11 @@ const BASE_COLOR_OPTIONS: { name: string; hex: number }[] = [
   { name: "Copper", hex: 0xb87333 },
   { name: "Corroded Copper", hex: 0x4a8a5e },
   { name: "Gold", hex: 0xffd700 },
-  { name: "Tarnished Silver", hex: 0x8a8a7a },
+  { name: "Tarnished Silver", hex: 0x8b5a2b },
   { name: "Titanium", hex: 0x7a3ea0 },
   { name: "Cobalt", hex: 0x0047ab },
   { name: "Bismuth", hex: 0xff00ff },
-  { name: "Rusty Iron", hex: 0x8b4513 },
+  { name: "Rusty Iron", hex: 0xff3b30 },
   { name: "Chromium", hex: 0xdbe4eb },
   { name: "Tungsten", hex: 0x36454f },
 ];
@@ -19,14 +19,14 @@ const BASE_COLOR_OPTIONS: { name: string; hex: number }[] = [
 /** Extended colors for 20-player mode */
 const EXTENDED_COLOR_OPTIONS: { name: string; hex: number }[] = [
   { name: "Brass", hex: 0xcda434 },
-  { name: "Verdigris", hex: 0x2eb8a6 },
+  { name: "Verdigris", hex: 0x00e5ff },
   { name: "Rose Gold", hex: 0xe8a0bf },
   { name: "Gunmetal", hex: 0x5c6670 },
   { name: "Nickel", hex: 0xa8a495 },
-  { name: "Oxidized Iron", hex: 0xc44b2f },
+  { name: "Oxidized Iron", hex: 0xff375f },
   { name: "Titanium Blue", hex: 0x4682b4 },
-  { name: "Molten", hex: 0xff6b35 },
-  { name: "Palladium", hex: 0xe6e0d4 },
+  { name: "Molten Steel", hex: 0xff6b35 },
+  { name: "Uranium", hex: 0x32d74b },
   { name: "Dark Bronze", hex: 0x6b4226 },
 ];
 
@@ -484,15 +484,19 @@ export class LobbyScene extends Phaser.Scene {
 
       // Show red X on taken color swatches
       const activeColors = this.getActiveColors();
+      // Sync selectedColorIndex from server state (handles auto-assign)
+      const localPlayer = state.players.get(this.localSessionId);
+      if (localPlayer?.color >= 0 && this.selectedColorIndex === -1) {
+        this.selectedColorIndex = activeColors.findIndex((c) => c.hex === localPlayer.color);
+        this.updateColorSelection();
+      }
+      const myColor = this.selectedColorIndex >= 0 && this.selectedColorIndex < activeColors.length
+        ? activeColors[this.selectedColorIndex].hex
+        : -1;
       this.colorSwatches.forEach((container, i) => {
         const xMark = container.getAt(2) as Phaser.GameObjects.Text;
         if (i >= activeColors.length) return;
-        const isTaken =
-          takenColors.has(activeColors[i].hex) &&
-          activeColors[i].hex !==
-            (this.selectedColorIndex >= 0 && this.selectedColorIndex < activeColors.length
-              ? activeColors[this.selectedColorIndex].hex
-              : -1);
+        const isTaken = takenColors.has(activeColors[i].hex) && activeColors[i].hex !== myColor;
         xMark.setAlpha(isTaken ? 1 : 0);
       });
 

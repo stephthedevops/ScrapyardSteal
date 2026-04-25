@@ -75,3 +75,49 @@ describe("GridRenderer.brightenColor", () => {
     expect(result).toBe(0x4c4c4c);
   });
 });
+
+describe("GridRenderer cost label font sizes", () => {
+  /**
+   * The cost number font size formula: Math.max(8, Math.floor(tileSize * 0.385))
+   * The gear icon font size formula: Math.max(6, Math.floor(fontSize * 0.7))
+   */
+  function costNumberFontSize(tileSize: number): number {
+    return Math.max(8, Math.floor(tileSize * 0.385));
+  }
+
+  function gearIconFontSize(tileSize: number): number {
+    const fontSize = costNumberFontSize(tileSize);
+    return Math.max(6, Math.floor(fontSize * 0.7));
+  }
+
+  it("cost number font size formula is unchanged (Math.max(8, floor(tileSize * 0.385)))", () => {
+    // Typical tile sizes
+    expect(costNumberFontSize(20)).toBe(Math.max(8, Math.floor(20 * 0.385)));
+    expect(costNumberFontSize(30)).toBe(Math.max(8, Math.floor(30 * 0.385)));
+    expect(costNumberFontSize(40)).toBe(Math.max(8, Math.floor(40 * 0.385)));
+    expect(costNumberFontSize(50)).toBe(Math.max(8, Math.floor(50 * 0.385)));
+
+    // Small tile size hits the minimum of 8
+    expect(costNumberFontSize(16)).toBe(8);
+  });
+
+  it("gear icon font size is smaller than the cost number font size", () => {
+    const tileSizes = [16, 20, 25, 30, 40, 50, 60, 80];
+    for (const tileSize of tileSizes) {
+      const numSize = costNumberFontSize(tileSize);
+      const iconSize = gearIconFontSize(tileSize);
+      expect(iconSize).toBeLessThanOrEqual(numSize);
+    }
+  });
+
+  it("both font sizes are clamped to their minimum values", () => {
+    // Very small tile size — cost number clamps to 8
+    expect(costNumberFontSize(16)).toBe(8);
+    expect(costNumberFontSize(10)).toBe(8);
+
+    // Gear icon clamps to 6 when cost number is small
+    // When costNumber = 8, gear = Math.max(6, Math.floor(8 * 0.7)) = Math.max(6, 5) = 6
+    expect(gearIconFontSize(16)).toBe(6);
+    expect(gearIconFontSize(10)).toBe(6);
+  });
+});

@@ -5,29 +5,28 @@ const PLAYER_COLORS: number[] = [
   0xb87333, // copper
   0x4a8a5e, // corroded copper (green)
   0xffd700, // gold
-  0x8a8a7a, // tarnished silver
+  0x8b5a2b, // tarnished silver
   0x7a3ea0, // titanium (purple)
   0x0047ab, // cobalt
   0xff00ff, // bismuth
-  0x8b4513, // rusty iron (brick)
+  0xff3b30, // rusty iron (brick)
   0xdbe4eb, // chromium
   0x36454f, // tungsten
   0xcda434, // brass
-  0x2eb8a6, // verdigris
+  0x00e5ff, // verdigris
   0xe8a0bf, // rose gold
   0x5c6670, // gunmetal
   0xa8a495, // nickel
-  0xc44b2f, // oxidized iron
+  0xff375f, // oxidized iron
   0x4682b4, // titanium blue
   0xff6b35, // molten
-  0xe6e0d4, // palladium
-  0x6b4226, // dark bronze
+  0x32d74b, // uranium
+  0x8b4513, // dark bronze
 ];
 
 const NEUTRAL_COLOR = 0x3a3a3a;
 const GRID_LINE_COLOR = 0x2a2a2a;
 const HIGHLIGHT_COLOR = 0xffcc44;
-const HIGHLIGHT_DIRECTION_COLOR = 0xffee88;
 const ABSORPTION_FLASH_COLOR = 0xffffff;
 
 /** Game area dimensions (matching Phaser config) */
@@ -297,72 +296,50 @@ export class GridRenderer {
 
   /**
    * Draw highlight borders around claimable tiles.
-   * Tiles matching the selected direction get a brighter highlight.
+   * All tiles get the same color and opacity.
    */
   highlightClaimable(
     tiles: { x: number; y: number }[],
-    direction: string,
     tileCost?: number,
     playerColor?: number
   ): void {
     const baseColor = playerColor !== undefined ? playerColor : HIGHLIGHT_COLOR;
-    const brightColor = playerColor !== undefined
-      ? GridRenderer.brightenColor(playerColor)
-      : HIGHLIGHT_DIRECTION_COLOR;
-    const costColorStr = playerColor !== undefined
-      ? `#${playerColor.toString(16).padStart(6, "0")}`
-      : "#ffcc44";
 
     for (const tile of tiles) {
       const { px, py } = this.gridToPixel(tile.x, tile.y);
-      const isBright = this.isTileInDirection(tile, direction);
-      const color = isBright ? brightColor : baseColor;
 
-      this.graphics.lineStyle(2, color, isBright ? 1 : 0.6);
+      this.graphics.lineStyle(2, baseColor, 1);
       this.graphics.strokeRect(px + 1, py + 1, this.tileSize - 2, this.tileSize - 2);
 
       // Show cost on claimable tiles (only if tile is large enough)
       if (tileCost !== undefined && this.tileSize >= 16) {
         const fontSize = Math.max(8, Math.floor(this.tileSize * 0.385));
+        const gearFontSize = Math.max(6, Math.floor(fontSize * 0.7));
         const costColor = GridRenderer.contrastTextColor(NEUTRAL_COLOR);
+
+        // Cost number text
         const costText = this.scene.add
-          .text(px + this.tileSize / 2, py + this.tileSize - 2, `-${tileCost}⚙️`, {
+          .text(px + this.tileSize / 2, py + this.tileSize - 2, `-${tileCost}`, {
             fontSize: `${fontSize}px`,
             color: costColor,
             fontFamily: "monospace",
           })
-          .setOrigin(0.5, 1)
+          .setOrigin(1, 1)
           .setAlpha(0.7)
           .setDepth(3);
         this.costLabels.push(costText);
+
+        // Gear icon text (smaller)
+        const gearText = this.scene.add
+          .text(px + this.tileSize / 2, py + this.tileSize - 2, `⚙️`, {
+            fontSize: `${gearFontSize}px`,
+            fontFamily: "monospace",
+          })
+          .setOrigin(0, 1)
+          .setAlpha(0.7)
+          .setDepth(3);
+        this.costLabels.push(gearText);
       }
-    }
-  }
-
-  /** Check if a tile lies in the given direction (simple quadrant check) */
-  private isTileInDirection(
-    tile: { x: number; y: number },
-    direction: string
-  ): boolean {
-    if (!direction || direction === "") return false;
-
-    // Use grid center as reference when no territory centroid is available
-    const cx = this.gridWidth / 2;
-    const cy = this.gridHeight / 2;
-    const dx = tile.x - cx;
-    const dy = tile.y - cy;
-
-    switch (direction) {
-      case "north":
-        return dy < 0;
-      case "south":
-        return dy > 0;
-      case "east":
-        return dx > 0;
-      case "west":
-        return dx < 0;
-      default:
-        return false;
     }
   }
 

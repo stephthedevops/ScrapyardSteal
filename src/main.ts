@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { WavedashSDK } from "@wvdsh/sdk-js";
 import { MenuScene } from "./scenes/MenuScene";
 import { TutorialScene } from "./scenes/TutorialScene";
 import { LobbyScene } from "./scenes/LobbyScene";
@@ -14,6 +15,14 @@ const config: Phaser.Types.Core.GameConfig = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
+  callbacks: {
+    postBoot: () => {
+      const Wavedash = (window as unknown as { Wavedash: WavedashSDK }).Wavedash;
+      if (Wavedash) {
+        Wavedash.init();
+      }
+    },
   },
 };
 

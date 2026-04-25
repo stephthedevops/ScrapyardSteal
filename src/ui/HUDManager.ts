@@ -67,6 +67,11 @@ export class HUDManager {
   private defenseBotCount: number = 0;
   private placedDefenseBotCount: number = 0;
 
+  // Capture choice modal
+  private captureChoiceElements: Phaser.GameObjects.GameObject[] = [];
+  private captureChoiceTimer: Phaser.Time.TimerEvent | null = null;
+  private captureChoiceVisible: boolean = false;
+
   // Callbacks for upgrade buttons
   public onUpgradeAttack: (() => void) | null = null;
   public onUpgradeDefense: (() => void) | null = null;
@@ -544,5 +549,131 @@ export class HUDManager {
         ease: "Power2",
       });
     });
+  }
+
+  /**
+   * Show the capture choice modal when the player's last factory falls.
+   * Displays a full-screen overlay with surrender/drop buttons and a countdown timer.
+   */
+  showCaptureChoice(
+    captorTeamName: string,
+    timeoutSeconds: number,
+    onChoice: (choice: "surrender" | "drop") => void
+  ): void {
+    this.dismissCaptureChoice(); // Clean up any existing modal
+    this.captureChoiceVisible = true;
+
+    const { width, height } = this.scene.cameras.main;
+
+    // Dark overlay
+    const overlay = this.scene.add
+      .rectangle(width / 2, height / 2, width, height, 0x000000, 0.7)
+      .setDepth(300);
+    this.captureChoiceElements.push(overlay);
+
+    // Title
+    const title = this.scene.add
+      .text(width / 2, height / 2 - 80, "YOUR FACTORY HAS FALLEN", {
+        fontSize: "24px",
+        color: "#ff4444",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5)
+      .setDepth(301);
+    this.captureChoiceElements.push(title);
+
+    // Captor name
+    const captorText = this.scene.add
+      .text(width / 2, height / 2 - 40, `Captured by: ${captorTeamName}`, {
+        fontSize: "16px",
+        color: "#ffffff",
+      })
+      .setOrigin(0.5)
+      .setDepth(301);
+    this.captureChoiceElements.push(captorText);
+
+    // Countdown timer text
+    let remaining = timeoutSeconds;
+    const timerText = this.scene.add
+      .text(width / 2, height / 2, `Time remaining: ${remaining}s`, {
+        fontSize: "14px",
+        color: "#ffcc00",
+      })
+      .setOrigin(0.5)
+      .setDepth(301);
+    this.captureChoiceElements.push(timerText);
+
+    // Countdown timer event
+    this.captureChoiceTimer = this.scene.time.addEvent({
+      delay: 1000,
+      repeat: timeoutSeconds - 1,
+      callback: () => {
+        remaining--;
+        if (timerText.active) {
+          timerText.setText(`Time remaining: ${remaining}s`);
+        }
+      },
+    });
+
+    // Surrender button
+    const surrenderBtn = this.scene.add
+      .text(width / 2 - 100, height / 2 + 50, "⚔ Surrender Tiles", {
+        fontSize: "16px",
+        color: "#ffffff",
+        backgroundColor: "#444444",
+        padding: { x: 12, y: 8 },
+      })
+      .setOrigin(0.5)
+      .setDepth(301)
+      .setInteractive({ useHandCursor: true });
+    surrenderBtn.on("pointerover", () => surrenderBtn.setStyle({ backgroundColor: "#666666" }));
+    surrenderBtn.on("pointerout", () => surrenderBtn.setStyle({ backgroundColor: "#444444" }));
+    surrenderBtn.on("pointerdown", () => {
+      this.dismissCaptureChoice();
+      onChoice("surrender");
+    });
+    this.captureChoiceElements.push(surrenderBtn);
+
+    // Drop button
+    const dropBtn = this.scene.add
+      .text(width / 2 + 100, height / 2 + 50, "💀 Drop Tiles", {
+        fontSize: "16px",
+        color: "#ffffff",
+        backgroundColor: "#444444",
+        padding: { x: 12, y: 8 },
+      })
+      .setOrigin(0.5)
+      .setDepth(301)
+      .setInteractive({ useHandCursor: true });
+    dropBtn.on("pointerover", () => dropBtn.setStyle({ backgroundColor: "#666666" }));
+    dropBtn.on("pointerout", () => dropBtn.setStyle({ backgroundColor: "#444444" }));
+    dropBtn.on("pointerdown", () => {
+      this.dismissCaptureChoice();
+      onChoice("drop");
+    });
+    this.captureChoiceElements.push(dropBtn);
+  }
+
+  /**
+   * Dismiss the capture choice modal, destroying all elements and clearing the timer.
+   * Safe to call even if no modal is displayed (idempotent).
+   */
+  dismissCaptureChoice(): void {
+    for (const el of this.captureChoiceElements) {
+      if (el && el.active) {
+        el.destroy();
+      }
+    }
+    this.captureChoiceElements = [];
+    if (this.captureChoiceTimer) {
+      this.captureChoiceTimer.destroy();
+      this.captureChoiceTimer = null;
+    }
+    this.captureChoiceVisible = false;
+  }
+
+  /** Returns true if the capture choice modal is currently displayed. */
+  isCaptureChoiceVisible(): boolean {
+    return this.captureChoiceVisible;
   }
 }

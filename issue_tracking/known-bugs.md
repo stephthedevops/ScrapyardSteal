@@ -8,13 +8,14 @@ Tracked issues that need fixing.
 
 ## Gameplay
 
-- [ ] Border conflict can transfer tiles from an already-absorbed player in the same tick
-- [ ] Absorbed players can still receive resource income for one tick after absorption
-- [ ] Claiming a gear tile and mining it in the same click may double-deduct resources
+- [ ] Gears not spawning
+- [x] Border conflict can transfer tiles from an already-absorbed player in the same tick [rej] — mitigated by absorption mechanic overhaul
+- [x] Absorbed players can still receive resource income for one tick after absorption [rej] — mitigated by absorption mechanic overhaul
+- [x] Claiming a gear tile and mining it in the same click may double-deduct resources [rej] — accepted risk
 
 ## UI
 
-- [ ] Color picker X marks don't update if a player disconnects and frees their color @steph
+- [x] Color picker X marks don't update if a player disconnects and frees their color @steph
 - [ ] Reroll button position is fixed and may overlap player list with many players
 
 ## Networking
