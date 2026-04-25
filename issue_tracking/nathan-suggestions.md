@@ -4,7 +4,6 @@ Feedback from Nathan (Valokor) after playtesting over lunch. These are design pr
 
 ## Scrap Generation
 
-- [ ] Rate-limit player clicks on scrap piles to 5–10/sec
 - [ ] Capturing additional scrap piles should auto-generate 1 scrap/sec each
 
 ## ATK / DEF Rework

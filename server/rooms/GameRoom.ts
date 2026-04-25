@@ -10,6 +10,7 @@ import {
 import {
   calculateTileClaimCost,
   calculateUpgradeCost,
+  calculateAttackPressure,
   findBorders,
   resolveBorder,
 } from "../logic/ConflictEngine";
@@ -19,11 +20,15 @@ import { sanitizeName } from "../logic/sanitize";
 export class GameRoom extends Room<GameState> {
   maxClients = 20;
   private gameLoopInterval: ReturnType<typeof this.clock.setInterval> | null = null;
+  private battleTickInterval: ReturnType<typeof this.clock.setInterval> | null = null;
   private hostId: string = "";
   private soloTeamTicks: number = 0;
   private gearRespawnCountdown: number = -1;
   private seriesScores: Map<string, number> = new Map();
   private configuredTimeLimit: number = 300;
+
+  /** Active battles: key = "x,y" of the tile being attacked, value = battle info */
+  private activeBattles: Map<string, { attackerId: string; tileX: number; tileY: number; currentDefense: number; damageDealt: number }> = new Map();
 
   /** Rate limiting: track last action timestamp per player per action type */
   private lastActionTime: Map<string, Map<string, number>> = new Map();
@@ -136,6 +141,103 @@ export class GameRoom extends Room<GameState> {
 
       player.resources -= cost;
       player.defense += 1;
+
+      // Give one defense bot to every team member too
+      this.state.players.forEach((p) => {
+        if (p.id !== player.id && p.teamId === player.id) {
+          p.defense += 1;
+        }
+      });
+    });
+
+    // Place a defense bot (🛡) on a tile the player's team owns (max 4 per tile)
+    this.onMessage("placeDefenseBot", (client, data: { x: number; y: number }) => {
+      if (this.state.phase !== "active") return;
+      if (!this.checkRateLimit(client.sessionId, "placeDefenseBot")) return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      // Determine the team leader
+      let leader = player;
+      if (player.absorbed && player.teamId) {
+        const teamLeader = this.state.players.get(player.teamId);
+        if (!teamLeader || teamLeader.absorbed) return;
+        leader = teamLeader;
+      }
+
+      // Bounds check
+      if (data.x < 0 || data.x >= this.state.gridWidth || data.y < 0 || data.y >= this.state.gridHeight) return;
+
+      const tile = this.state.tiles.find((t) => t.x === data.x && t.y === data.y);
+      if (!tile) return;
+
+      // Tile must be owned by the team leader
+      if (tile.ownerId !== leader.id) return;
+
+      // Parse existing defense bots
+      let defenseBots: { x: number; y: number }[] = [];
+      try { defenseBots = JSON.parse(leader.defenseBotsJSON); } catch { defenseBots = []; }
+
+      // Count bots already on this tile (max 4)
+      const botsOnTile = defenseBots.filter((b) => b.x === data.x && b.y === data.y).length;
+      if (botsOnTile >= 4) return;
+
+      // Must have available defense bots (defense count > placed count)
+      if (defenseBots.length >= leader.defense) return;
+
+      defenseBots.push({ x: data.x, y: data.y });
+      leader.defenseBotsJSON = JSON.stringify(defenseBots);
+    });
+
+    // Attack an enemy border tile — initiates a battle
+    this.onMessage("attackTile", (client, data: { x: number; y: number }) => {
+      if (this.state.phase !== "active") return;
+      if (!this.checkRateLimit(client.sessionId, "attackTile")) return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player || player.absorbed) return;
+
+      // Only team leaders can attack
+      if (!player.isTeamLead) return;
+
+      // Bounds check
+      if (data.x < 0 || data.x >= this.state.gridWidth || data.y < 0 || data.y >= this.state.gridHeight) return;
+
+      const tile = this.state.tiles.find((t) => t.x === data.x && t.y === data.y);
+      if (!tile) return;
+
+      // Tile must be owned by an enemy
+      if (tile.ownerId === "" || tile.ownerId === player.id) return;
+
+      // Tile must be adjacent to attacker's territory
+      const attackerTiles = this.state.tiles.filter((t) => t.ownerId === player.id);
+      if (!isAdjacent(data.x, data.y, attackerTiles)) return;
+
+      const key = `${data.x},${data.y}`;
+
+      // If already being attacked by this player, ignore
+      const existing = this.activeBattles.get(key);
+      if (existing && existing.attackerId === player.id) return;
+
+      // Calculate tile's current defense: base 5 + 5 per defense bot on this tile
+      const defender = this.state.players.get(tile.ownerId);
+      let tileDefense = 5;
+      if (defender) {
+        let defenseBots: { x: number; y: number }[] = [];
+        try { defenseBots = JSON.parse(defender.defenseBotsJSON); } catch { defenseBots = []; }
+        const botsOnTile = defenseBots.filter((b) => b.x === data.x && b.y === data.y).length;
+        tileDefense = 5 + botsOnTile * 5;
+      }
+
+      this.activeBattles.set(key, {
+        attackerId: player.id,
+        tileX: data.x,
+        tileY: data.y,
+        currentDefense: tileDefense,
+        damageDealt: 0,
+      });
+
+      // Broadcast battle flash to all clients
+      this.broadcast("battleFlash", { x: data.x, y: data.y, attackerId: player.id });
     });
 
     // Purchase a collection bot — gives one to every team member
@@ -243,8 +345,8 @@ export class GameRoom extends Room<GameState> {
       });
       const multiplier = Math.max(1, factoryCount);
 
-      // Extract scrap = attack × factory multiplier, capped by remaining gearScrap
-      const baseExtract = leader.attack * multiplier;
+      // Extract scrap = 5 × factory multiplier, capped by remaining gearScrap
+      const baseExtract = 5 * multiplier;
       const extracted = Math.min(baseExtract, tile.gearScrap);
       tile.gearScrap = Math.max(0, tile.gearScrap - extracted);
       leader.resources += extracted;
@@ -376,7 +478,7 @@ export class GameRoom extends Room<GameState> {
       if (this.state.phase !== "waiting") return;
       if (client.sessionId !== this.hostId) return;
 
-      const ALLOWED_TIMES = [120, 300, 420, 600];
+      const ALLOWED_TIMES = [0, 120, 300, 420, 600];
       if (data.timeLimit !== undefined && ALLOWED_TIMES.includes(data.timeLimit)) {
         this.state.timeRemaining = data.timeLimit;
       }
@@ -465,7 +567,7 @@ export class GameRoom extends Room<GameState> {
     player.isTeamLead = true;
     player.resources = 0;
     player.attack = 1;
-    player.defense = 1;
+    player.defense = 0;
     player.tileCount = 1;
     player.absorbed = false;
     player.direction = "";
@@ -521,6 +623,10 @@ export class GameRoom extends Room<GameState> {
     if (this.gameLoopInterval) {
       this.gameLoopInterval.clear();
       this.gameLoopInterval = null;
+    }
+    if (this.battleTickInterval) {
+      this.battleTickInterval.clear();
+      this.battleTickInterval = null;
     }
     GameRoom.shortCodeMap.delete(this.state.shortCode);
     GameRoom.publicRooms.delete(this.state.shortCode);
@@ -598,6 +704,9 @@ export class GameRoom extends Room<GameState> {
     // Start the 1-second game loop
     this.gameLoopInterval = this.clock.setInterval(() => this.gameTick(), 1000);
 
+    // Start the 500ms battle tick
+    this.battleTickInterval = this.clock.setInterval(() => this.battleTick(), 500);
+
     console.log(
       `Game started: ${gridSize}x${gridSize} grid, ${playerIds.length} players`
     );
@@ -612,11 +721,13 @@ export class GameRoom extends Room<GameState> {
   private gameTick() {
     if (this.state.phase !== "active") return;
 
-    // Countdown timer
-    this.state.timeRemaining -= 1;
-    if (this.state.timeRemaining <= 0) {
-      this.handleRoundEnd();
-      return;
+    // Countdown timer (0 = deathmatch / infinite)
+    if (this.configuredTimeLimit > 0) {
+      this.state.timeRemaining -= 1;
+      if (this.state.timeRemaining <= 0) {
+        this.handleRoundEnd();
+        return;
+      }
     }
 
     const { gridWidth, gridHeight } = this.state;
@@ -630,71 +741,9 @@ export class GameRoom extends Room<GameState> {
       tileGrid[tile.y][tile.x] = tile.ownerId;
     }
 
-    // 1. Evaluate all borders
-    const tilesArray: Tile[] = [];
-    this.state.tiles.forEach((tile) => tilesArray.push(tile));
-    const borders = findBorders(tilesArray, gridWidth, gridHeight);
+    // 1. (Border conflicts are now manual — handled by battleTick)
 
-    // 3. Resolve each border and collect tile transfers
-    for (const border of borders) {
-      const playerA = this.state.players.get(border.playerAId);
-      const playerB = this.state.players.get(border.playerBId);
-      if (!playerA || !playerB) continue;
-      if (playerA.absorbed || playerB.absorbed) continue;
-
-      const transfer = resolveBorder(
-        border,
-        { attack: playerA.attack, defense: playerA.defense },
-        { attack: playerB.attack, defense: playerB.defense }
-      );
-
-      if (transfer) {
-        // 4. Apply tile transfer: update tile ownership and both players' tileCounts
-        transfer.tile.ownerId = transfer.toId;
-
-        const fromPlayer = this.state.players.get(transfer.fromId);
-        const toPlayer = this.state.players.get(transfer.toId);
-        if (fromPlayer) fromPlayer.tileCount -= 1;
-        if (toPlayer) toPlayer.tileCount += 1;
-
-        // 5. Check for absorption: if fromPlayer's tileCount reaches 0
-        if (fromPlayer && fromPlayer.tileCount <= 0) {
-          fromPlayer.absorbed = true;
-          if (toPlayer) {
-            // Award bonus scrap
-            toPlayer.resources += Math.floor(0.25 * fromPlayer.resources);
-
-            // Transfer all absorbed player's tiles to the absorber
-            this.state.tiles.forEach((tile) => {
-              if (tile.ownerId === fromPlayer.id) {
-                tile.ownerId = toPlayer.id;
-                toPlayer.tileCount += 1;
-              }
-            });
-
-            // Prepend absorbed player's adjective(s) to absorber's team name
-            const absorbedAdj = fromPlayer.nameAdj || fromPlayer.teamName.split(" ").slice(0, -1).join(" ");
-            if (absorbedAdj) {
-              toPlayer.teamName = `${absorbedAdj} ${toPlayer.teamName}`;
-            }
-
-            // Move absorbed player to absorber's team
-            fromPlayer.teamId = toPlayer.id;
-            fromPlayer.isTeamLead = false;
-            fromPlayer.teamName = toPlayer.teamName;
-
-            // Update all existing team members' teamName too
-            this.state.players.forEach((p) => {
-              if (p.teamId === toPlayer.id && p.id !== toPlayer.id) {
-                p.teamName = toPlayer.teamName;
-              }
-            });
-          }
-        }
-      }
-    }
-
-    // 5b. AI player actions — simulate clicking each tick
+    // 2. AI player actions — simulate clicking each tick
     this.state.players.forEach((player) => {
       if (!player.isAI) return;
 
@@ -717,7 +766,7 @@ export class GameRoom extends Room<GameState> {
           let factoryCount = 0;
           ownedTiles.forEach((ot) => { if (ot.isSpawn) factoryCount++; });
           const multiplier = Math.max(1, factoryCount);
-          const extracted = Math.min(leader.attack * multiplier, t.gearScrap);
+          const extracted = Math.min(5 * multiplier, t.gearScrap);
           t.gearScrap -= extracted;
           leader.resources += extracted;
           if (t.gearScrap <= 0) t.hasGear = false;
@@ -758,6 +807,48 @@ export class GameRoom extends Room<GameState> {
         leader.resources -= defCost;
         leader.defense += 1;
       }
+
+      // Try to attack an enemy border tile (if not already attacking one)
+      let alreadyAttacking = false;
+      for (const [, battle] of this.activeBattles) {
+        if (battle.attackerId === leader.id) { alreadyAttacking = true; break; }
+      }
+
+      if (!alreadyAttacking && leader.attack > 0) {
+        // Find enemy tiles adjacent to our territory
+        const enemyBorderTiles: Tile[] = [];
+        for (const t of this.state.tiles) {
+          if (t.ownerId === "" || t.ownerId === leader.id) continue;
+          if (isAdjacent(t.x, t.y, ownedTiles)) {
+            enemyBorderTiles.push(t);
+          }
+        }
+
+        if (enemyBorderTiles.length > 0) {
+          const target = enemyBorderTiles[Math.floor(Math.random() * enemyBorderTiles.length)];
+          const key = `${target.x},${target.y}`;
+
+          // Calculate tile defense
+          const defender = this.state.players.get(target.ownerId);
+          let tileDefense = 5;
+          if (defender) {
+            let defenseBots: { x: number; y: number }[] = [];
+            try { defenseBots = JSON.parse(defender.defenseBotsJSON); } catch { defenseBots = []; }
+            const botsOnTile = defenseBots.filter((b) => b.x === target.x && b.y === target.y).length;
+            tileDefense = 5 + botsOnTile * 5;
+          }
+
+          this.activeBattles.set(key, {
+            attackerId: leader.id,
+            tileX: target.x,
+            tileY: target.y,
+            currentDefense: tileDefense,
+            damageDealt: 0,
+          });
+
+          this.broadcast("battleFlash", { x: target.x, y: target.y, attackerId: leader.id });
+        }
+      }
     });
 
     // 5c. Automine — collectors placed on tiles automatically mine each tick
@@ -790,7 +881,7 @@ export class GameRoom extends Room<GameState> {
 
         // Mine gear if tile has scrap
         if (tile.hasGear && tile.gearScrap > 0) {
-          const baseExtract = player.attack * multiplier;
+          const baseExtract = 5 * multiplier;
           const extracted = Math.min(baseExtract, tile.gearScrap);
           tile.gearScrap = Math.max(0, tile.gearScrap - extracted);
           player.resources += extracted;
@@ -845,6 +936,135 @@ export class GameRoom extends Room<GameState> {
   }
 
   /**
+   * Runs 2× per second. Processes all active battles.
+   * Each tick: reduce tile defense by 1. If defense crosses a 5-point threshold,
+   * remove a defense bot (50% chance to repair). At 0, capture the tile.
+   */
+  private battleTick() {
+    if (this.state.phase !== "active") return;
+
+    const toRemove: string[] = [];
+
+    for (const [key, battle] of this.activeBattles) {
+      const tile = this.state.tiles.find((t) => t.x === battle.tileX && t.y === battle.tileY);
+      if (!tile) { toRemove.push(key); continue; }
+
+      // If tile is no longer enemy-owned (already captured or changed), cancel battle
+      const attacker = this.state.players.get(battle.attackerId);
+      if (!attacker || attacker.absorbed) { toRemove.push(key); continue; }
+      if (tile.ownerId === "" || tile.ownerId === battle.attackerId) { toRemove.push(key); continue; }
+
+      // Check attacker still has adjacent tiles
+      const attackerTiles = this.state.tiles.filter((t) => t.ownerId === battle.attackerId);
+      if (!isAdjacent(battle.tileX, battle.tileY, attackerTiles)) { toRemove.push(key); continue; }
+
+      const defender = this.state.players.get(tile.ownerId);
+      if (!defender) { toRemove.push(key); continue; }
+
+      // Reduce defense by 1
+      const prevDefense = battle.currentDefense;
+      battle.currentDefense -= 1;
+      battle.damageDealt += 1;
+
+      // Every 5 damage dealt, 50% chance attacker loses an attack bot
+      if (battle.damageDealt % 5 === 0 && Math.random() < 0.5) {
+        if (attacker.attack > 0) {
+          attacker.attack -= 1;
+        }
+      }
+
+      // Check if we crossed a defense bot threshold (20, 15, 10, 5)
+      const thresholds = [20, 15, 10, 5];
+      for (const threshold of thresholds) {
+        if (prevDefense > threshold && battle.currentDefense <= threshold) {
+          // Remove one defense bot from this tile
+          let defenseBots: { x: number; y: number }[] = [];
+          try { defenseBots = JSON.parse(defender.defenseBotsJSON); } catch { defenseBots = []; }
+          const botIdx = defenseBots.findIndex((b) => b.x === battle.tileX && b.y === battle.tileY);
+          if (botIdx >= 0) {
+            defenseBots.splice(botIdx, 1);
+            defender.defenseBotsJSON = JSON.stringify(defenseBots);
+
+            // 50% chance to repair — adds an unplaced bot back
+            if (Math.random() < 0.5) {
+              defender.defense += 1;
+            }
+          }
+          break; // only one threshold per tick
+        }
+      }
+
+      // Broadcast battle flash to all clients
+      this.broadcast("battleFlash", { x: battle.tileX, y: battle.tileY, attackerId: battle.attackerId });
+
+      // Tile falls when defense reaches 0 — becomes unclaimed
+      if (battle.currentDefense <= 0) {
+        const defenderId = tile.ownerId;
+        tile.ownerId = "";
+
+        if (defender) defender.tileCount -= 1;
+
+        // Remove all defense bots from the fallen tile
+        let defenseBots: { x: number; y: number }[] = [];
+        try { defenseBots = JSON.parse(defender.defenseBotsJSON); } catch { defenseBots = []; }
+        const before = defenseBots.length;
+        defenseBots = defenseBots.filter((b) => !(b.x === battle.tileX && b.y === battle.tileY));
+        if (defenseBots.length !== before) {
+          defender.defenseBotsJSON = JSON.stringify(defenseBots);
+        }
+
+        // Remove any other battles targeting this tile
+        toRemove.push(key);
+
+        // Check for absorption
+        if (defender.tileCount <= 0) {
+          defender.absorbed = true;
+          // Award bonus scrap
+          attacker.resources += Math.floor(0.25 * defender.resources);
+
+          // All defender's remaining tiles become unclaimed
+          this.state.tiles.forEach((t) => {
+            if (t.ownerId === defenderId) {
+              t.ownerId = "";
+              defender.tileCount = 0;
+            }
+          });
+
+          // Prepend absorbed player's adjective(s) to attacker's team name
+          const absorbedAdj = defender.nameAdj || defender.teamName.split(" ").slice(0, -1).join(" ");
+          if (absorbedAdj) {
+            attacker.teamName = `${absorbedAdj} ${attacker.teamName}`;
+          }
+
+          // Move absorbed player to attacker's team
+          defender.teamId = battle.attackerId;
+          defender.isTeamLead = false;
+          defender.teamName = attacker.teamName;
+
+          // Update all existing team members' teamName
+          this.state.players.forEach((p) => {
+            if (p.teamId === battle.attackerId && p.id !== battle.attackerId) {
+              p.teamName = attacker.teamName;
+            }
+          });
+
+          // Cancel all battles involving the absorbed player
+          for (const [bKey, bVal] of this.activeBattles) {
+            const bTile = this.state.tiles.find((t) => t.x === bVal.tileX && t.y === bVal.tileY);
+            if (bVal.attackerId === defenderId || (bTile && bTile.ownerId === "" && bVal.attackerId !== battle.attackerId)) {
+              toRemove.push(bKey);
+            }
+          }
+        }
+      }
+    }
+
+    for (const key of toRemove) {
+      this.activeBattles.delete(key);
+    }
+  }
+
+  /**
    * Determines the round winner (player with most tiles) and handles
    * series logic for bo3/bo5 or ends the game for single matches.
    */
@@ -854,6 +1074,11 @@ export class GameRoom extends Room<GameState> {
       this.gameLoopInterval.clear();
       this.gameLoopInterval = null;
     }
+    if (this.battleTickInterval) {
+      this.battleTickInterval.clear();
+      this.battleTickInterval = null;
+    }
+    this.activeBattles.clear();
 
     // Determine round winner: player with most tiles
     let winnerId = "";
@@ -968,7 +1193,8 @@ export class GameRoom extends Room<GameState> {
     this.state.players.forEach((player) => {
       player.resources = 0;
       player.attack = 1;
-      player.defense = 1;
+      player.defense = 0;
+      player.defenseBotsJSON = "[]";
       player.collection = 0;
       player.collectorsJSON = "[]";
       player.tileCount = 1;
@@ -989,6 +1215,7 @@ export class GameRoom extends Room<GameState> {
     // Set phase to active and restart game loop
     this.state.phase = "active";
     this.gameLoopInterval = this.clock.setInterval(() => this.gameTick(), 1000);
+    this.battleTickInterval = this.clock.setInterval(() => this.battleTick(), 500);
 
     console.log(`Round ${this.state.roundNumber} started: ${gridSize}x${gridSize} grid`);
   }

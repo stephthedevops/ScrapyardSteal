@@ -22,12 +22,29 @@ export class GameScene extends Phaser.Scene {
   private connectingText: Phaser.GameObjects.Text | null = null;
   private hintPopupElements: Phaser.GameObjects.GameObject[] = [];
   private placingCollector: boolean = false;
+  private placingDefenseBot: boolean = false;
 
   constructor() {
     super({ key: "GameScene" });
   }
 
   create(data?: { room: any; networkManager: NetworkManager; sessionId: string }): void {
+    // Reset all state from previous session
+    this.gridRenderer = null;
+    this.hudManager = null;
+    this.room = null;
+    this.localSessionId = "";
+    this.currentDirection = "";
+    this.currentTileCost = 10;
+    this.absorbedPlayerIds = new Set();
+    this.playerNameCache = new Map();
+    this.gameEnded = false;
+    this.connectingText = null;
+    this.hintPopupElements = [];
+    this.placingCollector = false;
+    this.placingDefenseBot = false;
+    this.spawnTilesRegistered = false;
+
     if (data?.room && data?.networkManager) {
       // Came from LobbyScene with an existing connection
       this.room = data.room;
@@ -81,6 +98,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   private setupStateListener(): void {
+    // Listen for battle flash broadcasts
+    this.room.onMessage("battleFlash", (data: { x: number; y: number; attackerId: string }) => {
+      if (!this.gridRenderer) return;
+      const localPlayer = this.room.state?.players?.get(this.localSessionId);
+      const isAttacker = localPlayer && (localPlayer.id === data.attackerId || localPlayer.teamId === data.attackerId);
+      const flashColor = isAttacker
+        ? ((localPlayer?.color ?? -1) >= 0 ? localPlayer!.color : 0xffd700)
+        : 0xffffff;
+      this.gridRenderer.playMineFlash(data.x, data.y, flashColor);
+    });
+
     this.room.onStateChange((state: any) => {
       // On first state change with valid grid: initialize renderer and HUD
       if (!this.gridRenderer && state.gridWidth > 0) {
@@ -110,6 +138,9 @@ export class GameScene extends Phaser.Scene {
         };
         this.hudManager.onCollectorClick = () => {
           this.placingCollector = true;
+        };
+        this.hudManager.onDefenseBotClick = () => {
+          this.placingDefenseBot = true;
         };
       }
 
@@ -144,6 +175,9 @@ export class GameScene extends Phaser.Scene {
         };
         this.hudManager.onCollectorClick = () => {
           this.placingCollector = true;
+        };
+        this.hudManager.onDefenseBotClick = () => {
+          this.placingDefenseBot = true;
         };
       }
       this.onStateUpdate(state);
@@ -250,6 +284,22 @@ export class GameScene extends Phaser.Scene {
       } catch { /* ignore parse errors */ }
       this.hudManager.updateCollectors(effectivePlayer.collection || 0, placedCount);
 
+      // Update defense bot positions on grid renderer
+      let placedDefBots = 0;
+      try {
+        const defenseBots: { x: number; y: number }[] = JSON.parse(effectivePlayer.defenseBotsJSON || "[]");
+        placedDefBots = defenseBots.length;
+
+        // Build a map of tile -> bot count for the renderer
+        const defBotCounts = new Map<string, number>();
+        for (const b of defenseBots) {
+          const key = `${b.x},${b.y}`;
+          defBotCounts.set(key, (defBotCounts.get(key) ?? 0) + 1);
+        }
+        this.gridRenderer!.setDefenseBotData(defBotCounts);
+      } catch { /* ignore parse errors */ }
+      this.hudManager.updateDefenseBots(effectivePlayer.defense || 0, placedDefBots);
+
       // Update player identity below grid
       const localP = state.players.get(this.localSessionId);
       this.hudManager.updateIdentity(
@@ -261,11 +311,21 @@ export class GameScene extends Phaser.Scene {
 
     // Build leaderboard from non-absorbed players
     const leaderboardData: { id: string; tileCount: number }[] = [];
+    const teamStats: { name: string; tiles: number; attack: number; defense: number; collection: number; factories: number; scrap: number }[] = [];
     state.players.forEach((player: any, key: string) => {
       if (!player.absorbed) {
-        leaderboardData.push({ id: player.teamName || `${player.nameAdj} ${player.nameNoun}`.trim() || key.slice(0, 10), tileCount: player.tileCount });
+        const name = player.teamName || `${player.nameAdj} ${player.nameNoun}`.trim() || key.slice(0, 10);
+        leaderboardData.push({ id: name, tileCount: player.tileCount });
+        let fCount = 0;
+        state.tiles.forEach((t: any) => { if (t.isSpawn && t.ownerId === (player.id || key)) fCount++; });
+        teamStats.push({
+          name, tiles: player.tileCount, attack: player.attack,
+          defense: player.defense, collection: player.collection ?? 0,
+          factories: fCount, scrap: player.resources,
+        });
       }
     });
+    this.hudManager.updateTeamStats(teamStats);
     this.hudManager.updateLeaderboard(
       leaderboardData,
       state.timeRemaining,
@@ -387,6 +447,13 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // If in defense bot placement mode, place a defense bot
+    if (this.placingDefenseBot) {
+      this.placingDefenseBot = false;
+      this.networkManager.sendPlaceDefenseBot(gridPos.x, gridPos.y);
+      return;
+    }
+
     // Check tile state for gear handling
     let tileHasGear = false;
     let tileOwnerId = "";
@@ -398,9 +465,12 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    if (tileOwnerId === "" || tileOwnerId !== effectiveId) {
-      // Unclaimed or enemy tile — try to claim it first
+    if (tileOwnerId === "") {
+      // Unclaimed tile — try to claim it
       this.networkManager.sendClaimTile(gridPos.x, gridPos.y);
+    } else if (tileOwnerId !== effectiveId) {
+      // Enemy tile — initiate attack
+      this.networkManager.sendAttackTile(gridPos.x, gridPos.y);
     }
 
     if (tileHasGear && (tileOwnerId === "" || tileOwnerId === effectiveId)) {
@@ -518,7 +588,7 @@ export class GameScene extends Phaser.Scene {
 
   private createHintButton(): void {
     const btn = this.add
-      .text(GAME_WIDTH / 2 + 120, GAME_HEIGHT - 12, "💡", {
+      .text(10, GAME_HEIGHT - 12, "💡 Help", {
         fontSize: "18px",
         fontFamily: "monospace",
       })
@@ -556,12 +626,13 @@ export class GameScene extends Phaser.Scene {
     this.hintPopupElements.push(title);
 
     const controls = [
-      "Click tile      → Claim / Mine gear",
-      "Arrow keys      → Set expansion direction",
-      "Same arrow      → Clear direction",
-      "Escape          → Clear direction",
-      "⚔ ATK / 🛡 DEF  → Upgrade (costs scrap)",
-      "⚙ COL Bot       → Buy collector for team",
+      "Click neutral    → Claim tile (costs scrap)",
+      "Click gear       → Mine scrap",
+      "Click enemy tile → Attack (team lead only)",
+      "⚔️ ATK Bot       → Buy attack bot",
+      "🛡 DEF Bot       → Buy defense bot",
+      "Click 🛡 then tile → Place +5 defense (max 4)",
+      "⚙ COL Bot       → Buy collector",
       "Click ⚒ then tile → Place automine",
     ].join("\n");
 

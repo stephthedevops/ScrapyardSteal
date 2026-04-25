@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Build & Run App",
+  "description": "Builds the project for production with tsc and vite build, then starts the Colyseus game server and serves the built client with vite preview.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Run `npm run build` to compile and bundle the project. If it succeeds, start `npm run server` (Colyseus game server) and `npm run preview` (Vite preview server for the built client) as background processes using controlBashProcess. Report the URLs and any errors."
+  }
+}

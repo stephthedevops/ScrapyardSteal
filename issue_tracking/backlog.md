@@ -29,10 +29,9 @@ Post-jam features and improvements. Not blocking submission but worth building a
 
 ## UX
 
+- [ ] Remove growth direction feature — remove arrow key direction steering, DirectionFilter logic, and server-side direction handling (no longer in tutorial or hint popup)
 - [ ] Mobile touch support — Tap to claim, pinch to zoom, swipe for direction
 - [ ] Reconnection handling — Rejoin a game in progress after disconnect
-- [ ] Game config in host lobby — Host can adjust timer length, grid size, gear count before starting
-- [ ] Rematch / new round — Return to lobby after game ends without refreshing
 - [ ] Keyboard shortcuts — Hotkeys for upgrade attack (A), upgrade defense (D)
 
 ## Technical

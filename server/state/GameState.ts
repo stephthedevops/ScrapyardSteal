@@ -20,7 +20,8 @@ export class Player extends Schema {
   @type("boolean") isHost: boolean = false;
   @type("number") resources: number = 0;
   @type("number") attack: number = 1;
-  @type("number") defense: number = 1;
+  @type("number") defense: number = 0;
+  @type("string") defenseBotsJSON: string = "[]";
   @type("number") collection: number = 0;
   @type("string") collectorsJSON: string = "[]";
   @type("number") tileCount: number = 1;

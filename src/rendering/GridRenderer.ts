@@ -39,9 +39,9 @@ const GAME_HEIGHT = 600;
  * so HUD panels never overlap the playfield.
  */
 const LEFT_MARGIN = 140;   // stats panel width
-const RIGHT_MARGIN = 140;  // purchase-bot panel width
+const RIGHT_MARGIN = 140;  // leaderboard + purchase bot panel width
 const TOP_MARGIN = 8;      // small top gap
-const BOTTOM_MARGIN = 50;  // identity text + collector icons
+const BOTTOM_MARGIN = 50;  // identity text + bot icons
 const GRID_PADDING = 4;    // breathing room inside the margins
 
 export class GridRenderer {
@@ -127,6 +127,8 @@ export class GridRenderer {
   private costLabels: Phaser.GameObjects.Text[] = [];
   private collectorTiles: Set<string> = new Set();
   private collectorIcons: Phaser.GameObjects.Text[] = [];
+  private defenseIcons: Phaser.GameObjects.Text[] = [];
+  private defenseBotCounts: Map<string, number> = new Map();
 
   /** Mark a tile as having a gear decoration */
   setGearTile(x: number, y: number): void {
@@ -153,6 +155,11 @@ export class GridRenderer {
     this.collectorTiles.clear();
   }
 
+  /** Update defense bot counts per tile */
+  setDefenseBotData(counts: Map<string, number>): void {
+    this.defenseBotCounts = counts;
+  }
+
   /**
    * Draw a tile at grid position with the player's color or neutral color.
    * If animate=true, play a brief scale-pulse tween on the tile.
@@ -168,6 +175,32 @@ export class GridRenderer {
     // Draw grid line border
     this.graphics.lineStyle(1, GRID_LINE_COLOR, 1);
     this.graphics.strokeRect(px, py, this.tileSize, this.tileSize);
+
+    // Draw defense indicator on owned tiles (shield behind, number in front)
+    if (ownerId !== "" && this.tileSize >= 16) {
+      const botCount = this.defenseBotCounts.get(`${x},${y}`) ?? 0;
+      const tileDefense = 5 + botCount * 5;
+      const shieldSize = Math.max(6, Math.floor(this.tileSize * 0.22));
+      const shieldIcon = this.scene.add
+        .text(px + this.tileSize / 2, py + 2, "🛡", {
+          fontSize: `${shieldSize}px`,
+        })
+        .setOrigin(0.5, 0)
+        .setAlpha(0.35)
+        .setDepth(2);
+      this.defenseIcons.push(shieldIcon);
+
+      const defLabel = this.scene.add
+        .text(px + this.tileSize / 2, py + 2, `${tileDefense}`, {
+          fontSize: `${shieldSize}px`,
+          color: "#ffffff",
+          fontFamily: "monospace",
+        })
+        .setOrigin(0.5, 0)
+        .setAlpha(0.5)
+        .setDepth(3);
+      this.defenseIcons.push(defLabel);
+    }
 
     // Draw factory icon on spawn tiles
     if (this.spawnTiles.has(`${x},${y}`) && ownerId !== "") {
@@ -185,9 +218,8 @@ export class GridRenderer {
     if (this.gearTiles.has(`${x},${y}`)) {
       const gearSize = Math.max(6, Math.floor(this.tileSize * 0.5));
       const gearIcon = this.scene.add
-        .text(px + this.tileSize / 2, py + this.tileSize / 2, "⚙", {
+        .text(px + this.tileSize / 2, py + this.tileSize / 2, "⚙️", {
           fontSize: `${gearSize}px`,
-          color: "#888888",
         })
         .setOrigin(0.5)
         .setDepth(4);
@@ -288,16 +320,16 @@ export class GridRenderer {
 
       // Show cost on claimable tiles (only if tile is large enough)
       if (tileCost !== undefined && this.tileSize >= 16) {
-        const fontSize = Math.max(7, Math.floor(this.tileSize * 0.3));
+        const fontSize = Math.max(6, Math.floor(this.tileSize * 0.22));
         const costText = this.scene.add
-          .text(px + this.tileSize / 2, py + this.tileSize / 2, `${tileCost}`, {
+          .text(px + this.tileSize / 2, py + this.tileSize - 2, `-${tileCost}`, {
             fontSize: `${fontSize}px`,
             color: costColorStr,
             fontFamily: "monospace",
           })
-          .setOrigin(0.5)
+          .setOrigin(0.5, 1)
           .setAlpha(0.7)
-          .setDepth(6);
+          .setDepth(3);
         this.costLabels.push(costText);
       }
     }
@@ -388,6 +420,8 @@ export class GridRenderer {
     this.gearIcons = [];
     this.collectorIcons.forEach((icon) => icon.destroy());
     this.collectorIcons = [];
+    this.defenseIcons.forEach((icon) => icon.destroy());
+    this.defenseIcons = [];
     this.costLabels.forEach((label) => label.destroy());
     this.costLabels = [];
   }

@@ -4,13 +4,12 @@ Tracked issues that need fixing.
 
 ## Critical
 
-- [ ] Non-host players sometimes don't transition from lobby to game (relies on polling fallback)
+(None — resolved)
 
 ## Gameplay
 
 - [ ] Border conflict can transfer tiles from an already-absorbed player in the same tick
 - [ ] Absorbed players can still receive resource income for one tick after absorption
-- [ ] Gear mining doesn't animate or give visual feedback on click @steph
 - [ ] Claiming a gear tile and mining it in the same click may double-deduct resources
 
 ## UI
@@ -27,5 +26,4 @@ Tracked issues that need fixing.
 
 ## From Code Audit
 
-- [ ] Absorbed players' tiles not transferred to absorber on absorption
 - [ ] Room code lookup in NetworkManager has no timeout or retry logic

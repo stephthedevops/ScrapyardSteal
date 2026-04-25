@@ -2,6 +2,68 @@
 
 All notable changes to Scrapyard Steal.
 
+## [0.6.0] — 2026-04-24
+
+### Added
+- Manual combat system — team leaders click enemy border tiles to initiate attacks; no more automatic border conflict
+- Battle tick (2×/sec) — each tick removes 1 defense from the targeted tile; tile becomes unclaimed at 0 defense
+- Defense bots (🛡) — purchasable bots placed on owned tiles, each adding +5 defense (max 4 per tile, permanent once placed)
+- Per-tile defense display — shield icon with defense value shown at top of every owned tile (base 5 + 5 per bot)
+- Defense bot repair — 50% chance a lost defense bot is returned as unplaced when a threshold is crossed
+- Attacker attrition — every 5 damage dealt, 50% chance the attacker loses an attack bot
+- Defense bot HUD icons — clickable 🛡 icons for placing unplaced defense bots (mirrors collector placement flow)
+- `attackTile` message handler and `sendAttackTile` network method
+- `placeDefenseBot` message handler and `sendPlaceDefenseBot` network method
+- `defenseBotsJSON` field on Player schema for tracking placed defense bot positions
+- `battleFlash` broadcast message for attack animations on all clients
+- Colorful emoji icons — gear (⚙️) and attack (⚔️) now use emoji presentation for color rendering
+- "💡 Help" label on the in-game hint button (was just 💡)
+
+### Changed
+- Attack pressure formula changed to `(5 × factories) + (5 × ATK bots)` — no longer based on border tile count
+- Mining no longer uses attack stat — extraction is now `5 × factories owned`
+- Defense is now per-tile (base 5 + placed bots) instead of a flat player stat multiplied by border tiles
+- Player defense stat starts at 0 (was 1) — represents unplaced defense bots available
+- Border conflict removed from automatic game tick — combat is now player-initiated
+- `resolveBorder` accepts optional `tileDefenseMap` and `pressureOverrides` for the new combat model
+- `calculateBorderPressure` replaced by `calculateAttackPressure(factories, attackBots)`
+- Absorbed player tiles become unclaimed (neutral) instead of transferring to the absorber
+- Scrap cost label on claimable tiles — smaller font, positioned at bottom of tile with minus sign prefix, rendered behind gear icon
+- About menu close button positioned dynamically below text content (no longer overlaps)
+- About menu version now reads from package.json correctly (v0.6.0)
+- Server config panel — all buttons reduced from 32px to 24px height, AI entries render in two columns
+- DONE button on config panel shrunk from 40px to 32px
+- Tutorial fully rewritten (11 pages) — new pages for Attacking, Defending, and updated Bots & Upgrades
+- In-game hint popup updated for new combat controls and removed direction key references
+- Growth direction feature removed from tutorial (functionality removal tracked in backlog)
+
+### Fixed
+- About menu `[CLOSE]` link no longer overlaps text content — dynamically positioned below body text
+- About menu showing wrong version (was 0.5.0, now correctly shows 0.6.0)
+
+## [0.5.1] — 2025-04-22
+
+### Added
+- AI player behavior — AI bots now mine gears, claim adjacent tiles (prioritizing gear tiles), and upgrade ATK/DEF each tick
+- Absorbed AI players mine on behalf of their team leader
+- Tile claim cost preview — claimable tiles now show their scrap cost as a small overlay label
+- "PURCHASE BOT" legend panel on right side grouping ATK, DEF, and COL upgrade buttons
+- Collection Bot (COL Bot) upgrade button and cost label (placeholder, not yet wired to server)
+- Nathan's playtest feedback file (`issue_tracking/nathan-suggestions.md`) with scrap generation, ATK/DEF rework, and upgrade scaling proposals
+- Nathan's scrap & economy feedback triaged into core-priorities.md
+- Backfilled CHANGELOG entries for v0.4.1, v0.4.2, and v0.5.0
+- Bot stat card images added to `public/images/` (8 PNGs)
+
+### Changed
+- Re-themed ATK/DEF as "ATK Bot" / "DEF Bot" in HUD stats panel and upgrade buttons
+- Initial gear placement reduced from 3× player count to 1× player count
+- Gear respawn reworked from 20s cooldown to continuous spawning (1 new gear per tick on a random unclaimed tile)
+- Game over screen shows full winner name instead of just the noun, with word-wrap and smaller font
+- Lobby CONFIG button repositioned to (485, 575) and slightly reduced; BACK button moved to (325, 575) to sit side-by-side
+- Stats panel labels updated: Attack → ATK Bots, Defense → DEF Bots, added COL Bots row
+- Issue triage tag changed from `cpr` to `core` for core-priorities routing
+- Issue triage hook trigger changed from `promptSubmit` to `postTaskExecution`
+
 ## [0.5.0] — 2025-04-22
 
 ### Added

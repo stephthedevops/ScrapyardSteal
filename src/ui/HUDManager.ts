@@ -16,10 +16,10 @@ const GAME_HEIGHT = 600;
 
 /**
  * HUD layout zones — must stay in sync with GridRenderer margins.
- * Left panel:  0 → 136
- * Right panel:  664 → 800
- * Bottom strip: 554 → 600
- * Top strip:    0 → 8  (leaderboard floats top-center, above grid)
+ * Left panel:  0 → 136  (stats)
+ * Right panel:  664 → 800  (leaderboard top, purchase bots bottom)
+ * Bottom strip: 554 → 600  (identity + bot icons)
+ * Top strip:    0 → 8
  */
 const LEFT_PANEL_W = 136;
 const RIGHT_PANEL_W = 136;
@@ -33,10 +33,14 @@ export class HUDManager {
   private statsTitle: Phaser.GameObjects.Text;
   private statsText: Phaser.GameObjects.Text;
 
-  // Leaderboard (top-center, above grid)
-  private leaderboardBg: Phaser.GameObjects.Rectangle;
-  private leaderboardTitle: Phaser.GameObjects.Text;
-  private leaderboardText: Phaser.GameObjects.Text;
+  // Leaderboard (now a popup, triggered by Stats button)
+  private statsButton: Phaser.GameObjects.Container;
+  private timerText: Phaser.GameObjects.Text;
+  private statsPopupElements: Phaser.GameObjects.GameObject[] = [];
+  private cachedLeaderboardData: { id: string; tileCount: number; attack: number; defense: number; collection: number; factories: number; resources: number }[] = [];
+  private cachedTimeRemaining: number = 0;
+  private cachedMatchFormat: string = "";
+  private cachedSeriesScoresJSON: string = "";
 
   // Upgrade buttons (right gutter)
   private attackButton: Phaser.GameObjects.Container;
@@ -58,11 +62,17 @@ export class HUDManager {
   private collectorCount: number = 0;
   private placedCollectorCount: number = 0;
 
+  // Defense bot icons (🛡) displayed above collector icons
+  private defenseBotIcons: Phaser.GameObjects.Text[] = [];
+  private defenseBotCount: number = 0;
+  private placedDefenseBotCount: number = 0;
+
   // Callbacks for upgrade buttons
   public onUpgradeAttack: (() => void) | null = null;
   public onUpgradeDefense: (() => void) | null = null;
   public onUpgradeCollection: (() => void) | null = null;
   public onCollectorClick: ((index: number) => void) | null = null;
+  public onDefenseBotClick: (() => void) | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -94,45 +104,48 @@ export class HUDManager {
       })
       .setDepth(HUD_DEPTH + 1);
 
-    // ─── TOP-CENTER: Leaderboard ────────────────────────────────────
-    // Positioned above the grid, centered horizontally
-    this.leaderboardBg = scene.add
-      .rectangle(GAME_WIDTH / 2, 4, 260, 20, DARK_BG, DARK_BG_ALPHA)
-      .setOrigin(0.5, 0)
-      .setDepth(HUD_DEPTH);
+    // ─── RIGHT GUTTER: Timer + Stats button ────────────────────────
+    const rightX = GAME_WIDTH - RIGHT_PANEL_W / 2;
 
-    this.leaderboardTitle = scene.add
-      .text(GAME_WIDTH / 2, 6, "LEADERBOARD", {
+    this.timerText = scene.add
+      .text(rightX, 10, "5:00", {
         fontFamily: FONT_FAMILY,
-        fontSize: "10px",
+        fontSize: "14px",
         color: GOLD,
       })
       .setOrigin(0.5, 0)
       .setDepth(HUD_DEPTH + 1);
 
-    this.leaderboardText = scene.add
-      .text(GAME_WIDTH / 2, 20, "", {
+    // Stats button
+    const statsBtnBg = scene.add
+      .rectangle(0, 0, RIGHT_PANEL_W - 12, 28, BUTTON_BG, 0.85)
+      .setInteractive({ useHandCursor: true });
+    const statsBtnLabel = scene.add
+      .text(0, 0, "📊 Stats", {
         fontFamily: FONT_FAMILY,
-        fontSize: "10px",
+        fontSize: "12px",
         color: AMBER,
-        lineSpacing: 1,
-        align: "center",
       })
-      .setOrigin(0.5, 0)
-      .setDepth(HUD_DEPTH + 1);
+      .setOrigin(0.5);
+    statsBtnBg.on("pointerover", () => statsBtnBg.setFillStyle(BUTTON_HOVER, 0.9));
+    statsBtnBg.on("pointerout", () => statsBtnBg.setFillStyle(BUTTON_BG, 0.85));
+    statsBtnBg.on("pointerdown", () => this.toggleStatsPopup());
+    this.statsButton = scene.add.container(rightX, 42, [statsBtnBg, statsBtnLabel]);
+    this.statsButton.setSize(RIGHT_PANEL_W - 12, 28);
+    this.statsButton.setDepth(HUD_DEPTH + 1);
 
-    // ─── RIGHT GUTTER: Purchase Bot buttons ─────────────────────────
-    const rightX = GAME_WIDTH - RIGHT_PANEL_W / 2;
-    const btnStartY = 30;
+    // ─── BOTTOM-RIGHT: Purchase Bot buttons (vertical) ────────────
+    const botPanelX = GAME_WIDTH - RIGHT_PANEL_W / 2;
+    const botPanelTopY = GAME_HEIGHT - 160;
 
-    // Legend background
+    // Background
     scene.add
-      .rectangle(rightX, btnStartY + 70, RIGHT_PANEL_W - 4, 190, DARK_BG, DARK_BG_ALPHA)
+      .rectangle(botPanelX, botPanelTopY + 60, RIGHT_PANEL_W - 4, 150, DARK_BG, DARK_BG_ALPHA)
       .setDepth(HUD_DEPTH);
 
-    // Legend title
+    // Title
     scene.add
-      .text(rightX, btnStartY, "PURCHASE BOT", {
+      .text(botPanelX, botPanelTopY, "PURCHASE BOT", {
         fontFamily: FONT_FAMILY,
         fontSize: "10px",
         color: GOLD,
@@ -165,24 +178,24 @@ export class HUDManager {
       .setOrigin(0.5, 0.5);
 
     this.attackButton = this.createUpgradeButton(
-      rightX,
-      btnStartY + 30,
-      "⚔ ATK Bot",
+      botPanelX,
+      botPanelTopY + 30,
+      "⚔️ ATK Bot",
       this.attackCostText,
       () => this.onUpgradeAttack?.()
     );
 
     this.defenseButton = this.createUpgradeButton(
-      rightX,
-      btnStartY + 70,
+      botPanelX,
+      botPanelTopY + 70,
       "🛡 DEF Bot",
       this.defenseCostText,
       () => this.onUpgradeDefense?.()
     );
 
     this.collectionButton = this.createUpgradeButton(
-      rightX,
-      btnStartY + 110,
+      botPanelX,
+      botPanelTopY + 110,
       "⚙ COL Bot",
       this.collectionCostText,
       () => this.onUpgradeCollection?.()
@@ -340,8 +353,51 @@ export class HUDManager {
   }
 
   /**
-   * Update the leaderboard. Sorts players by tileCount descending.
-   * Renders as a compact horizontal bar above the grid.
+   * Update the defense bot (🛡) icons displayed above the collector icons.
+   * Unplaced bots are bright and clickable; placed ones are dimmed.
+   */
+  updateDefenseBots(totalBots: number, placedCount: number): void {
+    if (totalBots === this.defenseBotCount && placedCount === this.placedDefenseBotCount) return;
+    this.defenseBotCount = totalBots;
+    this.placedDefenseBotCount = placedCount;
+
+    this.defenseBotIcons.forEach((icon) => icon.destroy());
+    this.defenseBotIcons = [];
+
+    if (totalBots <= 0) return;
+
+    const spacing = 20;
+    const totalWidth = totalBots * spacing;
+    const startX = GAME_WIDTH / 2 - totalWidth / 2;
+    const y = GAME_HEIGHT - 44;
+
+    for (let i = 0; i < totalBots; i++) {
+      const isPlaced = i < placedCount;
+      const icon = this.scene.add
+        .text(startX + i * spacing, y, "🛡", {
+          fontSize: "14px",
+          fontFamily: FONT_FAMILY,
+        })
+        .setOrigin(0, 0.5)
+        .setDepth(HUD_DEPTH + 1)
+        .setAlpha(isPlaced ? 0.35 : 1.0);
+
+      if (!isPlaced) {
+        icon.setInteractive({ useHandCursor: true });
+        icon.on("pointerdown", () => {
+          this.onDefenseBotClick?.();
+        });
+        icon.on("pointerover", () => icon.setScale(1.2));
+        icon.on("pointerout", () => icon.setScale(1.0));
+      }
+
+      this.defenseBotIcons.push(icon);
+    }
+  }
+
+  /**
+   * Update the leaderboard data and timer display.
+   * Data is cached for the stats popup.
    */
   updateLeaderboard(
     players: { id: string; tileCount: number }[],
@@ -349,41 +405,111 @@ export class HUDManager {
     matchFormat?: string,
     seriesScoresJSON?: string
   ): void {
-    const sorted = [...players].sort((a, b) => b.tileCount - a.tileCount);
+    // Cache data for stats popup
+    this.cachedTimeRemaining = timeRemaining ?? 0;
+    this.cachedMatchFormat = matchFormat ?? "";
+    this.cachedSeriesScoresJSON = seriesScoresJSON ?? "";
 
-    // Compact format: "1. Name 42  2. Name 31  ..."
-    const lines = sorted.map(
-      (p, i) => `${i + 1}. ${p.id} — ${p.tileCount}`
-    );
+    // Update timer display
+    if (timeRemaining !== undefined && timeRemaining > 0) {
+      const timeStr = `${Math.floor(timeRemaining / 60)}:${String(timeRemaining % 60).padStart(2, "0")}`;
+      this.timerText.setText(timeStr);
+    } else if (timeRemaining === 0) {
+      this.timerText.setText("☠ DEATHMATCH");
+    }
+  }
 
-    const timeStr = timeRemaining !== undefined
-      ? `${Math.floor(timeRemaining / 60)}:${String(timeRemaining % 60).padStart(2, "0")}`
-      : "";
+  /** Store full team data for the stats popup */
+  updateTeamStats(teams: { name: string; tiles: number; attack: number; defense: number; collection: number; factories: number; scrap: number }[]): void {
+    this.cachedLeaderboardData = teams.map((t) => ({
+      id: t.name, tileCount: t.tiles, attack: t.attack, defense: t.defense,
+      collection: t.collection, factories: t.factories, resources: t.scrap,
+    }));
+  }
 
-    let titlePrefix = "LEADERBOARD";
-    if (matchFormat && matchFormat !== "single" && seriesScoresJSON) {
-      try {
-        const scores: Record<string, number> = JSON.parse(seriesScoresJSON);
-        const scoreValues = Object.values(scores);
-        if (scoreValues.length > 0) {
-          const scoreStr = scoreValues.join("-");
-          titlePrefix = `LEADERBOARD [${scoreStr}]`;
-        }
-      } catch {
-        // Invalid JSON — fall back to default title
-      }
+  /** Toggle the full-screen stats popup */
+  private toggleStatsPopup(): void {
+    if (this.statsPopupElements.length > 0) {
+      this.statsPopupElements.forEach((el) => el.destroy());
+      this.statsPopupElements = [];
+      return;
     }
 
-    this.leaderboardTitle.setText(timeStr ? `${titlePrefix}  ${timeStr}` : titlePrefix);
-    this.leaderboardText.setText(lines.join("\n"));
+    const POPUP_DEPTH = 200;
 
-    // Resize background to fit content, centered
-    const textWidth = Math.max(this.leaderboardTitle.width, this.leaderboardText.width);
-    const textHeight = this.leaderboardText.height;
-    const bgWidth = Math.max(180, textWidth + 20);
-    const bgHeight = textHeight + 24;
-    this.leaderboardBg.setSize(bgWidth, bgHeight);
-    this.leaderboardBg.setPosition(GAME_WIDTH / 2, 4);
+    const overlay = this.scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.8)
+      .setDepth(POPUP_DEPTH).setInteractive();
+    this.statsPopupElements.push(overlay);
+
+    const box = this.scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 600, 440, 0x1a1a2e, 0.95)
+      .setDepth(POPUP_DEPTH + 1).setStrokeStyle(2, 0x3a3a2a);
+    this.statsPopupElements.push(box);
+
+    // Title
+    let titleStr = "TEAM STATS";
+    if (this.cachedMatchFormat && this.cachedMatchFormat !== "single" && this.cachedSeriesScoresJSON) {
+      try {
+        const scores: Record<string, number> = JSON.parse(this.cachedSeriesScoresJSON);
+        const vals = Object.values(scores);
+        if (vals.length > 0) titleStr += `  [${vals.join("-")}]`;
+      } catch { /* ignore */ }
+    }
+    const title = this.scene.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 195, titleStr, {
+      fontSize: "18px", color: GOLD, fontFamily: FONT_FAMILY,
+    }).setOrigin(0.5).setDepth(POPUP_DEPTH + 2);
+    this.statsPopupElements.push(title);
+
+    // Column headers
+    const headerY = GAME_HEIGHT / 2 - 165;
+    const cols = [140, 310, 370, 420, 470, 520, 580];
+    const headers = ["Team", "Tiles", "⚔️ATK", "🛡DEF", "⚙COL", "🏭", "Scrap"];
+    headers.forEach((h, i) => {
+      const t = this.scene.add.text(cols[i], headerY, h, {
+        fontSize: "11px", color: GOLD, fontFamily: FONT_FAMILY,
+      }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
+      this.statsPopupElements.push(t);
+    });
+
+    // Divider
+    const divider = this.scene.add.rectangle(GAME_WIDTH / 2, headerY + 12, 560, 1, 0x3a3a2a)
+      .setDepth(POPUP_DEPTH + 2);
+    this.statsPopupElements.push(divider);
+
+    // Team rows sorted by tiles
+    const sorted = [...this.cachedLeaderboardData].sort((a, b) => b.tileCount - a.tileCount);
+    sorted.forEach((team, idx) => {
+      const y = headerY + 30 + idx * 22;
+      const rank = this.scene.add.text(120, y, `${idx + 1}.`, {
+        fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
+      }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
+      this.statsPopupElements.push(rank);
+
+      const name = this.scene.add.text(cols[0], y, team.id.length > 22 ? team.id.slice(0, 22) + "…" : team.id, {
+        fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
+      }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
+      this.statsPopupElements.push(name);
+
+      const values = [
+        `${team.tileCount}`, `${team.attack}`, `${team.defense}`,
+        `${team.collection}`, `${team.factories}`, `${team.resources}`,
+      ];
+      values.forEach((v, i) => {
+        const t = this.scene.add.text(cols[i + 1], y, v, {
+          fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
+        }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
+        this.statsPopupElements.push(t);
+      });
+    });
+
+    // Close button
+    const closeBtn = this.scene.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 195, "[CLOSE]", {
+      fontSize: "14px", color: GOLD, fontFamily: FONT_FAMILY,
+    }).setOrigin(0.5).setDepth(POPUP_DEPTH + 2).setInteractive({ useHandCursor: true });
+    this.statsPopupElements.push(closeBtn);
+    closeBtn.on("pointerdown", () => {
+      this.statsPopupElements.forEach((el) => el.destroy());
+      this.statsPopupElements = [];
+    });
   }
 
   /**

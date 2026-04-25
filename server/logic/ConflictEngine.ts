@@ -91,21 +91,21 @@ export function findBorders(
 }
 
 /**
- * Calculates border pressure for a player along a shared border.
- * Pressure = attack × number of border tiles the player has.
+ * Calculates attack pressure for a player.
+ * Pressure = (5 × factories) + (5 × attack bots).
  */
-export function calculateBorderPressure(
-  attack: number,
-  borderTileCount: number
+export function calculateAttackPressure(
+  factories: number,
+  attackBots: number
 ): number {
-  return attack * borderTileCount;
+  return 5 * factories + 5 * attackBots;
 }
 
 /**
  * Resolves a border conflict between two players.
  *
- * Compares A's pressure (A.attack × A's shared border tiles) against
- * B's defense (B.defense × B's shared border tiles), and vice versa.
+ * Compares A's pressure ((5 × factories) + (5 × attack bots)) against
+ * B's defense (sum of per-tile defense across B's border tiles), and vice versa.
  *
  * If A's pressure > B's defense strength, one of B's border tiles transfers to A.
  * If B's pressure > A's defense strength, one of A's border tiles transfers to B.
@@ -114,27 +114,68 @@ export function calculateBorderPressure(
 export function resolveBorder(
   border: BorderInfo,
   playerA: { attack: number; defense: number },
-  playerB: { attack: number; defense: number }
+  playerB: { attack: number; defense: number },
+  tileDefenseMap?: Map<string, number>,
+  pressureOverrides?: { pressureA: number; pressureB: number }
 ): TileTransfer | null {
-  const pressureA = calculateBorderPressure(playerA.attack, border.sharedTilesA.length);
-  const defenseB = calculateBorderPressure(playerB.defense, border.sharedTilesB.length);
+  const pressureA = pressureOverrides?.pressureA ?? (playerA.attack * border.sharedTilesA.length);
 
-  const pressureB = calculateBorderPressure(playerB.attack, border.sharedTilesB.length);
-  const defenseA = calculateBorderPressure(playerA.defense, border.sharedTilesA.length);
+  // Sum per-tile defense for B's border tiles
+  let defenseB: number;
+  if (tileDefenseMap) {
+    defenseB = border.sharedTilesB.reduce((sum, t) => {
+      return sum + (tileDefenseMap.get(`${t.x},${t.y}`) ?? 0);
+    }, 0);
+  } else {
+    defenseB = playerB.defense * border.sharedTilesB.length;
+  }
+
+  const pressureB = pressureOverrides?.pressureB ?? (playerB.attack * border.sharedTilesB.length);
+
+  let defenseA: number;
+  if (tileDefenseMap) {
+    defenseA = border.sharedTilesA.reduce((sum, t) => {
+      return sum + (tileDefenseMap.get(`${t.x},${t.y}`) ?? 0);
+    }, 0);
+  } else {
+    defenseA = playerA.defense * border.sharedTilesA.length;
+  }
 
   if (pressureA > defenseB) {
-    // A overpowers B — transfer one of B's border tiles to A
+    // A overpowers B — transfer one of B's border tiles to A (pick the weakest)
+    let weakestTile = border.sharedTilesB[0];
+    if (tileDefenseMap) {
+      let weakestDef = Infinity;
+      for (const t of border.sharedTilesB) {
+        const d = tileDefenseMap.get(`${t.x},${t.y}`) ?? 0;
+        if (d < weakestDef) {
+          weakestDef = d;
+          weakestTile = t;
+        }
+      }
+    }
     return {
-      tile: border.sharedTilesB[0],
+      tile: weakestTile,
       fromId: border.playerBId,
       toId: border.playerAId,
     };
   }
 
   if (pressureB > defenseA) {
-    // B overpowers A — transfer one of A's border tiles to B
+    // B overpowers A — transfer one of A's border tiles to B (pick the weakest)
+    let weakestTile = border.sharedTilesA[0];
+    if (tileDefenseMap) {
+      let weakestDef = Infinity;
+      for (const t of border.sharedTilesA) {
+        const d = tileDefenseMap.get(`${t.x},${t.y}`) ?? 0;
+        if (d < weakestDef) {
+          weakestDef = d;
+          weakestTile = t;
+        }
+      }
+    }
     return {
-      tile: border.sharedTilesA[0],
+      tile: weakestTile,
       fromId: border.playerAId,
       toId: border.playerBId,
     };

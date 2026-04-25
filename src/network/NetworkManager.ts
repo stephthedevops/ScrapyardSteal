@@ -93,6 +93,14 @@ export class NetworkManager {
     this.room?.send("placeCollector", { x, y });
   }
 
+  sendPlaceDefenseBot(x: number, y: number): void {
+    this.room?.send("placeDefenseBot", { x, y });
+  }
+
+  sendAttackTile(x: number, y: number): void {
+    this.room?.send("attackTile", { x, y });
+  }
+
   sendSetName(adj: string, noun: string): void {
     this.room?.send("setName", { adj, noun });
   }

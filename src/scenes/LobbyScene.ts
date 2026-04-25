@@ -2,8 +2,8 @@ import Phaser from "phaser";
 import { NetworkManager } from "../network/NetworkManager";
 import { generateName, formatName } from "../utils/nameGenerator";
 
-/** Available colors players can pick */
-const COLOR_OPTIONS: { name: string; hex: number }[] = [
+/** Available colors players can pick — base set (10) */
+const BASE_COLOR_OPTIONS: { name: string; hex: number }[] = [
   { name: "Copper", hex: 0xb87333 },
   { name: "Corroded Copper", hex: 0x4a8a5e },
   { name: "Gold", hex: 0xffd700 },
@@ -15,6 +15,23 @@ const COLOR_OPTIONS: { name: string; hex: number }[] = [
   { name: "Chromium", hex: 0xdbe4eb },
   { name: "Tungsten", hex: 0x36454f },
 ];
+
+/** Extended colors for 20-player mode */
+const EXTENDED_COLOR_OPTIONS: { name: string; hex: number }[] = [
+  { name: "Brass", hex: 0xcda434 },
+  { name: "Verdigris", hex: 0x2eb8a6 },
+  { name: "Rose Gold", hex: 0xe8a0bf },
+  { name: "Gunmetal", hex: 0x5c6670 },
+  { name: "Nickel", hex: 0xa8a495 },
+  { name: "Oxidized Iron", hex: 0xc44b2f },
+  { name: "Titanium Blue", hex: 0x4682b4 },
+  { name: "Molten", hex: 0xff6b35 },
+  { name: "Palladium", hex: 0xe6e0d4 },
+  { name: "Dark Bronze", hex: 0x6b4226 },
+];
+
+/** All colors combined */
+const ALL_COLOR_OPTIONS = [...BASE_COLOR_OPTIONS, ...EXTENDED_COLOR_OPTIONS];
 
 const AMBER = "#e0a030";
 const GOLD = "#ffcc44";
@@ -36,6 +53,8 @@ export class LobbyScene extends Phaser.Scene {
   private configPanelObjects: Phaser.GameObjects.GameObject[] = [];
   private colorSwatches: Phaser.GameObjects.Container[] = [];
   private selectedColorIndex: number = -1;
+  private currentMaxPlayers: number = 10;
+  private colorPickerLabel!: Phaser.GameObjects.Text;
   private roomCodeDisplay!: Phaser.GameObjects.Text;
   private errorPopupShown = false;
 
@@ -44,6 +63,18 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Reset all state from previous session
+    this.room = null;
+    this.localSessionId = "";
+    this.startButton = null;
+    this.configButton = null;
+    this.configPanelObjects = [];
+    this.colorSwatches = [];
+    this.selectedColorIndex = -1;
+    this.currentMaxPlayers = 10;
+    this.errorPopupShown = false;
+    this.transitioned = false;
+
     this.titleText = this.add
       .text(400, 40, "SCRAPYARD STEAL", {
         fontSize: "36px",
@@ -73,10 +104,10 @@ export class LobbyScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    // Your name display with reroll button
+    // Your name reroll button — positioned just above color picker
     this.add
-      .text(310, 155, "♻", {
-        fontSize: "18px",
+      .text(400, 295, "🎲 Reroll Name", {
+        fontSize: "13px",
         color: AMBER,
         fontFamily: FONT,
       })
@@ -94,13 +125,6 @@ export class LobbyScene extends Phaser.Scene {
         this.setColor(AMBER);
       });
 
-    // Task 9.4: "reroll" label next to ♻ button
-    this.add.text(330, 155, "reroll", {
-      fontSize: "11px",
-      color: AMBER,
-      fontFamily: FONT,
-    }).setOrigin(0, 0.5);
-
     this.playerListText = this.add
       .text(400, 175, "", {
         fontSize: "13px",
@@ -112,7 +136,7 @@ export class LobbyScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
 
     // Color picker label
-    this.add
+    this.colorPickerLabel = this.add
       .text(400, 310, "CHOOSE YOUR COLOR", {
         fontSize: "14px",
         color: GOLD,
@@ -270,23 +294,39 @@ export class LobbyScene extends Phaser.Scene {
     }
   }
 
-  private createColorPicker(): void {
-    const startX = 400 - (COLOR_OPTIONS.length * 40) / 2 + 20;
-    const y = 345;
+  /** Get the active color options based on current maxPlayers */
+  private getActiveColors(): { name: string; hex: number }[] {
+    return this.currentMaxPlayers >= 20 ? ALL_COLOR_OPTIONS : BASE_COLOR_OPTIONS;
+  }
 
-    COLOR_OPTIONS.forEach((color, i) => {
-      const x = startX + i * 40;
+  private createColorPicker(): void {
+    // Destroy existing swatches
+    this.colorSwatches.forEach((c) => c.destroy());
+    this.colorSwatches = [];
+
+    const colors = this.getActiveColors();
+    const cols = colors.length <= 10 ? 10 : 10; // always 10 per row
+    const rows = Math.ceil(colors.length / cols);
+    const swatchSpacing = 36;
+    const startX = 400 - (cols * swatchSpacing) / 2 + swatchSpacing / 2;
+    const baseY = 345;
+
+    colors.forEach((color, i) => {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const x = startX + col * swatchSpacing;
+      const y = baseY + row * 38;
 
       const swatch = this.add
-        .rectangle(0, 0, 30, 30, color.hex)
+        .rectangle(0, 0, 28, 28, color.hex)
         .setInteractive({ useHandCursor: true });
 
-      const border = this.add.rectangle(0, 0, 34, 34).setStrokeStyle(2, 0x333333);
+      const border = this.add.rectangle(0, 0, 32, 32).setStrokeStyle(2, 0x333333);
 
       // Red X overlay for taken colors (hidden by default)
       const xMark = this.add
         .text(0, 0, "✕", {
-          fontSize: "22px",
+          fontSize: "20px",
           color: "#ff2222",
           fontFamily: FONT,
           fontStyle: "bold",
@@ -295,7 +335,7 @@ export class LobbyScene extends Phaser.Scene {
         .setAlpha(0);
 
       const container = this.add.container(x, y, [border, swatch, xMark]);
-      container.setSize(34, 34);
+      container.setSize(32, 32);
       container.setDepth(HUD_DEPTH);
 
       swatch.on("pointerdown", () => {
@@ -372,22 +412,50 @@ export class LobbyScene extends Phaser.Scene {
     this.room.onStateChange((state: any) => {
       if (this.transitioned) return;
 
-      // Update player list
-      const players: string[] = [];
+      // Update player list in 3 columns
+      const playerEntries: { text: string; color: string }[] = [];
       const takenColors = new Set<number>();
       state.players.forEach((player: any, key: string) => {
         const baseName = player.teamName || `${player.nameAdj} ${player.nameNoun}`.trim() || key.slice(0, 10);
         const displayName = player.isAI ? `🤖 ${baseName}` : baseName;
-        const host = player.isHost ? " (HOST)" : "";
-        const you = key === this.localSessionId ? " ← you" : "";
+        const you = key === this.localSessionId ? " ←" : "";
+        const host = player.isHost ? " ★" : "";
         const colorName =
           player.color >= 0
-            ? COLOR_OPTIONS.find((c) => c.hex === player.color)?.name || "?"
+            ? ALL_COLOR_OPTIONS.find((c) => c.hex === player.color)?.name || "?"
             : "no color";
-        players.push(`${displayName}${host}${you}  [${colorName}]`);
+        const entryColor = player.color >= 0
+          ? `#${player.color.toString(16).padStart(6, "0")}`
+          : AMBER;
+        playerEntries.push({ text: `${displayName}${host}${you} [${colorName}]`, color: entryColor });
         if (player.color >= 0) takenColors.add(player.color);
       });
-      this.playerListText.setText(players.join("\n"));
+
+      // Destroy old player list items
+      this.children.getAll().forEach((child) => {
+        if ((child as any).name?.startsWith("playerEntry_")) child.destroy();
+      });
+
+      // Render in 3 columns
+      const colWidth = 240;
+      const cols = 3;
+      const startX = 400 - ((Math.min(playerEntries.length, cols) - 1) * colWidth) / 2;
+      playerEntries.forEach((entry, idx) => {
+        const col = idx % cols;
+        const row = Math.floor(idx / cols);
+        const x = playerEntries.length < cols
+          ? 400 - ((playerEntries.length - 1) * colWidth) / 2 + col * colWidth
+          : startX + col * colWidth;
+        const y = 155 + row * 20;
+        this.add.text(x, y, entry.text, {
+          fontSize: "11px",
+          color: entry.color,
+          fontFamily: FONT,
+        }).setOrigin(0.5, 0).setName(`playerEntry_${idx}`);
+      });
+
+      // Hide the old single-line player list text
+      this.playerListText.setText("");
 
       // Show short code
       if (state.shortCode) {
@@ -396,14 +464,34 @@ export class LobbyScene extends Phaser.Scene {
         if (copyBtn) copyBtn.setAlpha(1);
       }
 
+      // Rebuild color picker if maxPlayers changed
+      const newMaxPlayers = state.maxPlayers ?? 10;
+      if (newMaxPlayers !== this.currentMaxPlayers) {
+        this.currentMaxPlayers = newMaxPlayers;
+        // Find current selected color hex before rebuild
+        const activeColors = this.getActiveColors();
+        const prevColor = this.selectedColorIndex >= 0 && this.selectedColorIndex < activeColors.length
+          ? activeColors[this.selectedColorIndex]?.hex
+          : -1;
+        this.createColorPicker();
+        // Restore selection index if color still exists
+        if (prevColor >= 0) {
+          const newColors = this.getActiveColors();
+          this.selectedColorIndex = newColors.findIndex((c) => c.hex === prevColor);
+        }
+        this.updateColorSelection();
+      }
+
       // Show red X on taken color swatches
+      const activeColors = this.getActiveColors();
       this.colorSwatches.forEach((container, i) => {
         const xMark = container.getAt(2) as Phaser.GameObjects.Text;
+        if (i >= activeColors.length) return;
         const isTaken =
-          takenColors.has(COLOR_OPTIONS[i].hex) &&
-          COLOR_OPTIONS[i].hex !==
-            (this.selectedColorIndex >= 0
-              ? COLOR_OPTIONS[this.selectedColorIndex].hex
+          takenColors.has(activeColors[i].hex) &&
+          activeColors[i].hex !==
+            (this.selectedColorIndex >= 0 && this.selectedColorIndex < activeColors.length
+              ? activeColors[this.selectedColorIndex].hex
               : -1);
         xMark.setAlpha(isTaken ? 1 : 0);
       });
@@ -606,7 +694,7 @@ export class LobbyScene extends Phaser.Scene {
     this.configPanelObjects.push(overlay);
 
     // Panel box
-    const panelBox = this.add.rectangle(400, 330, 500, 520, 0x1a1a2e, 0.95)
+    const panelBox = this.add.rectangle(400, 340, 500, 540, 0x1a1a2e, 0.95)
       .setDepth(PANEL_DEPTH + 1).setStrokeStyle(2, 0x3a3a2a);
     this.configPanelObjects.push(panelBox);
 
@@ -617,7 +705,7 @@ export class LobbyScene extends Phaser.Scene {
     this.configPanelObjects.push(title);
 
     // --- TIME LIMIT SECTION ---
-    const timeLabel = this.add.text(400, 150, "TIME LIMIT", {
+    const timeLabel = this.add.text(400, 145, "TIME LIMIT", {
       fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
     this.configPanelObjects.push(timeLabel);
@@ -627,17 +715,18 @@ export class LobbyScene extends Phaser.Scene {
       { label: "5 min", value: 300 },
       { label: "7 min", value: 420 },
       { label: "10 min", value: 600 },
+      { label: "☠ Death", value: 0 },
     ];
 
     const timeButtons: Phaser.GameObjects.Rectangle[] = [];
     const timeLabels: Phaser.GameObjects.Text[] = [];
 
     TIME_OPTIONS.forEach((opt, i) => {
-      const x = 250 + i * 100;
-      const bg = this.add.rectangle(x, 185, 80, 32, BUTTON_BG, 0.85)
+      const x = 220 + i * 80;
+      const bg = this.add.rectangle(x, 172, 70, 24, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const lbl = this.add.text(x, 185, opt.label, {
-        fontSize: "13px", color: AMBER, fontFamily: FONT,
+      const lbl = this.add.text(x, 172, opt.label, {
+        fontSize: "11px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
 
       if (opt.value === selectedTime) {
@@ -666,7 +755,7 @@ export class LobbyScene extends Phaser.Scene {
     });
 
     // --- MATCH FORMAT SECTION ---
-    const formatLabel = this.add.text(400, 225, "MATCH FORMAT", {
+    const formatLabel = this.add.text(400, 200, "MATCH FORMAT", {
       fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
     this.configPanelObjects.push(formatLabel);
@@ -682,10 +771,10 @@ export class LobbyScene extends Phaser.Scene {
 
     FORMAT_OPTIONS.forEach((opt, i) => {
       const x = 270 + i * 130;
-      const bg = this.add.rectangle(x, 260, 110, 32, BUTTON_BG, 0.85)
+      const bg = this.add.rectangle(x, 227, 110, 24, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const lbl = this.add.text(x, 260, opt.label, {
-        fontSize: "12px", color: AMBER, fontFamily: FONT,
+      const lbl = this.add.text(x, 227, opt.label, {
+        fontSize: "11px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
 
       if (opt.value === selectedFormat) {
@@ -715,7 +804,7 @@ export class LobbyScene extends Phaser.Scene {
     // --- GEAR SCRAP SECTION ---
     let selectedScrap = this.room?.state?.gearScrapSupply ?? 1000;
 
-    const scrapLabel = this.add.text(400, 300, "GEAR SCRAP", {
+    const scrapLabel = this.add.text(400, 255, "GEAR SCRAP", {
       fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
     this.configPanelObjects.push(scrapLabel);
@@ -727,10 +816,10 @@ export class LobbyScene extends Phaser.Scene {
 
     SCRAP_OPTIONS.forEach((val, i) => {
       const x = 220 + i * 90;
-      const bg = this.add.rectangle(x, 335, 72, 32, BUTTON_BG, 0.85)
+      const bg = this.add.rectangle(x, 282, 72, 24, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const lbl = this.add.text(x, 335, `${val}`, {
-        fontSize: "13px", color: AMBER, fontFamily: FONT,
+      const lbl = this.add.text(x, 282, `${val}`, {
+        fontSize: "12px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
 
       if (val === selectedScrap) {
@@ -757,8 +846,53 @@ export class LobbyScene extends Phaser.Scene {
       this.configPanelObjects.push(bg, lbl);
     });
 
+    // --- MAX PLAYERS SECTION ---
+    let selectedMaxPlayers = this.room?.state?.maxPlayers ?? 10;
+
+    const maxPlayersLabel = this.add.text(400, 310, "MAX PLAYERS", {
+      fontSize: "14px", color: GOLD, fontFamily: FONT,
+    }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
+    this.configPanelObjects.push(maxPlayersLabel);
+
+    const MAX_PLAYER_OPTIONS = [10, 20];
+
+    const maxPlayerButtons: Phaser.GameObjects.Rectangle[] = [];
+    const maxPlayerLabels: Phaser.GameObjects.Text[] = [];
+
+    MAX_PLAYER_OPTIONS.forEach((val, i) => {
+      const x = 350 + i * 100;
+      const bg = this.add.rectangle(x, 337, 80, 24, BUTTON_BG, 0.85)
+        .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
+      const lbl = this.add.text(x, 337, `${val}`, {
+        fontSize: "12px", color: AMBER, fontFamily: FONT,
+      }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
+
+      if (val === selectedMaxPlayers) {
+        bg.setFillStyle(0x5a8a3a, 1);
+        lbl.setColor(GOLD);
+      }
+
+      bg.on("pointerdown", () => {
+        selectedMaxPlayers = val;
+        this.networkManager.sendSetConfig({ maxPlayers: val });
+        maxPlayerButtons.forEach((b, j) => {
+          if (j === i) {
+            b.setFillStyle(0x5a8a3a, 1);
+            maxPlayerLabels[j].setColor(GOLD);
+          } else {
+            b.setFillStyle(BUTTON_BG, 0.85);
+            maxPlayerLabels[j].setColor(AMBER);
+          }
+        });
+      });
+
+      maxPlayerButtons.push(bg);
+      maxPlayerLabels.push(lbl);
+      this.configPanelObjects.push(bg, lbl);
+    });
+
     // --- AI PLAYERS SECTION ---
-    const aiLabel = this.add.text(400, 380, "AI PLAYERS", {
+    const aiLabel = this.add.text(400, 370, "AI PLAYERS", {
       fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
     this.configPanelObjects.push(aiLabel);
@@ -784,30 +918,33 @@ export class LobbyScene extends Phaser.Scene {
         }
       });
 
-      const countLabel = this.add.text(400, 405, `${aiPlayers.length} / 4`, {
+      const countLabel = this.add.text(400, 393, `${aiPlayers.length} / 4`, {
         fontSize: "12px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
       aiEntryObjects.push(countLabel);
 
-      // Show each AI entry
+      // Show each AI entry in two columns
       aiPlayers.forEach((ai, idx) => {
-        const y = 430 + idx * 28;
-        const icon = this.add.text(220, y, "🤖", {
-          fontSize: "14px", fontFamily: FONT,
+        const col = idx % 2;
+        const row = Math.floor(idx / 2);
+        const x = col === 0 ? 210 : 410;
+        const y = 415 + row * 24;
+        const icon = this.add.text(x, y, "🤖", {
+          fontSize: "13px", fontFamily: FONT,
         }).setDepth(PANEL_DEPTH + 2);
-        const colorSwatch = this.add.rectangle(250, y + 2, 16, 16, ai.color)
+        const colorSwatch = this.add.rectangle(x + 22, y + 2, 14, 14, ai.color)
           .setDepth(PANEL_DEPTH + 2);
-        const nameText = this.add.text(265, y, ai.name, {
-          fontSize: "12px", color: AMBER, fontFamily: FONT,
+        const nameText = this.add.text(x + 34, y, ai.name, {
+          fontSize: "11px", color: AMBER, fontFamily: FONT,
         }).setDepth(PANEL_DEPTH + 2);
         aiEntryObjects.push(icon, colorSwatch, nameText);
       });
 
       // + button
-      const plusBg = this.add.rectangle(350, 405, 32, 28, BUTTON_BG, 0.85)
+      const plusBg = this.add.rectangle(350, 393, 28, 22, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const plusLbl = this.add.text(350, 405, "+", {
-        fontSize: "16px", color: AMBER, fontFamily: FONT,
+      const plusLbl = this.add.text(350, 393, "+", {
+        fontSize: "14px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
       aiEntryObjects.push(plusBg, plusLbl);
 
@@ -818,7 +955,7 @@ export class LobbyScene extends Phaser.Scene {
         this.room.state.players.forEach((p: any) => {
           if (p.color >= 0) takenColors.add(p.color);
         });
-        const availableColor = COLOR_OPTIONS.find((c) => !takenColors.has(c.hex));
+        const availableColor = this.getActiveColors().find((c) => !takenColors.has(c.hex));
         if (!availableColor) return;
         this.networkManager.sendAddAI(availableColor.hex);
         // Rebuild after a short delay to let state sync
@@ -826,10 +963,10 @@ export class LobbyScene extends Phaser.Scene {
       });
 
       // − button
-      const minusBg = this.add.rectangle(450, 405, 32, 28, BUTTON_BG, 0.85)
+      const minusBg = this.add.rectangle(450, 393, 28, 22, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const minusLbl = this.add.text(450, 405, "−", {
-        fontSize: "16px", color: AMBER, fontFamily: FONT,
+      const minusLbl = this.add.text(450, 393, "−", {
+        fontSize: "14px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
       aiEntryObjects.push(minusBg, minusLbl);
 
@@ -848,10 +985,10 @@ export class LobbyScene extends Phaser.Scene {
     const aiCleanup = { entries: aiEntryObjects };
 
     // --- DONE BUTTON ---
-    const doneBg = this.add.rectangle(400, 555, 140, 40, 0x3a6a2a, 0.9)
+    const doneBg = this.add.rectangle(400, 490, 140, 32, 0x3a6a2a, 0.9)
       .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-    const doneLbl = this.add.text(400, 555, "DONE", {
-      fontSize: "16px", color: GOLD, fontFamily: FONT,
+    const doneLbl = this.add.text(400, 490, "DONE", {
+      fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
     this.configPanelObjects.push(doneBg, doneLbl);
 
