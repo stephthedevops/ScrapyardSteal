@@ -424,12 +424,17 @@ export class HUDManager {
     }
   }
 
-  /** Store full team data for the stats popup */
+  /** Store full team data for the stats popup; re-render if open */
   updateTeamStats(teams: { name: string; tiles: number; attack: number; defense: number; collection: number; factories: number; scrap: number }[]): void {
     this.cachedLeaderboardData = teams.map((t) => ({
       id: t.name, tileCount: t.tiles, attack: t.attack, defense: t.defense,
       collection: t.collection, factories: t.factories, resources: t.scrap,
     }));
+
+    // Re-render the popup every tick if it's currently open
+    if (this.statsPopupElements.length > 0) {
+      this.renderStatsPopup();
+    }
   }
 
   /** Toggle the full-screen stats popup */
@@ -439,6 +444,14 @@ export class HUDManager {
       this.statsPopupElements = [];
       return;
     }
+    this.renderStatsPopup();
+  }
+
+  /** Build (or rebuild) the stats popup from cached data */
+  private renderStatsPopup(): void {
+    // Tear down any existing elements first
+    this.statsPopupElements.forEach((el) => el.destroy());
+    this.statsPopupElements = [];
 
     const POPUP_DEPTH = 200;
 
