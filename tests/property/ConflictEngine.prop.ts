@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
 import { Tile } from "../../server/state/GameState";
 import {
-  calculateBorderPressure,
+  calculateAttackPressure,
   calculateTileClaimCost,
   calculateUpgradeCost,
   resolveBorder,
@@ -13,15 +13,16 @@ describe("Property-Based Tests — ConflictEngine", () => {
   /**
    * **Validates: Requirements 1.1**
    * Property 1: Pressure is non-negative — generate random non-negative
-   * attack and borderTileCount (0–100), assert result >= 0.
+   * factories, attackBots, and activeBattles, assert result >= 0.
    */
   it("4.1 Pressure is non-negative", () => {
     fc.assert(
       fc.property(
+        fc.integer({ min: 0, max: 10 }),
         fc.integer({ min: 0, max: 100 }),
-        fc.integer({ min: 0, max: 100 }),
-        (attack, borderTileCount) => {
-          expect(calculateBorderPressure(attack, borderTileCount)).toBeGreaterThanOrEqual(0);
+        fc.integer({ min: 1, max: 10 }),
+        (factories, attackBots, activeBattles) => {
+          expect(calculateAttackPressure(factories, attackBots, activeBattles)).toBeGreaterThanOrEqual(0);
         }
       )
     );
@@ -29,19 +30,20 @@ describe("Property-Based Tests — ConflictEngine", () => {
 
   /**
    * **Validates: Requirements 1.1**
-   * Property 2: Pressure scales linearly with attack — generate random
-   * attack (1–50) and tileCount (1–20), assert
-   * pressure(2*attack, tileCount) === 2 * pressure(attack, tileCount).
+   * Property 2: Pressure increases with more attack bots — generate random
+   * factories, bots a < b, and activeBattles, assert pressure(a) <= pressure(b).
    */
-  it("4.2 Pressure scales linearly with attack", () => {
+  it("4.2 Pressure increases with more attack bots", () => {
     fc.assert(
       fc.property(
+        fc.integer({ min: 0, max: 10 }),
+        fc.integer({ min: 0, max: 50 }),
         fc.integer({ min: 1, max: 50 }),
-        fc.integer({ min: 1, max: 20 }),
-        (attack, tileCount) => {
-          const single = calculateBorderPressure(attack, tileCount);
-          const doubled = calculateBorderPressure(2 * attack, tileCount);
-          expect(doubled).toBe(2 * single);
+        fc.integer({ min: 1, max: 10 }),
+        (factories, botsA, offset, activeBattles) => {
+          const botsB = botsA + offset;
+          expect(calculateAttackPressure(factories, botsA, activeBattles))
+            .toBeLessThanOrEqual(calculateAttackPressure(factories, botsB, activeBattles));
         }
       )
     );
@@ -49,19 +51,20 @@ describe("Property-Based Tests — ConflictEngine", () => {
 
   /**
    * **Validates: Requirements 1.1**
-   * Property 3: Pressure scales linearly with tile count — generate random
-   * attack (1–50) and tileCount (1–20), assert
-   * pressure(attack, 2*tileCount) === 2 * pressure(attack, tileCount).
+   * Property 3: Pressure increases with more factories — generate random
+   * factories a < b, attackBots, and activeBattles, assert pressure(a) <= pressure(b).
    */
-  it("4.3 Pressure scales linearly with tile count", () => {
+  it("4.3 Pressure increases with more factories", () => {
     fc.assert(
       fc.property(
-        fc.integer({ min: 1, max: 50 }),
-        fc.integer({ min: 1, max: 20 }),
-        (attack, tileCount) => {
-          const single = calculateBorderPressure(attack, tileCount);
-          const doubled = calculateBorderPressure(attack, 2 * tileCount);
-          expect(doubled).toBe(2 * single);
+        fc.integer({ min: 0, max: 10 }),
+        fc.integer({ min: 1, max: 10 }),
+        fc.integer({ min: 0, max: 100 }),
+        fc.integer({ min: 1, max: 10 }),
+        (factoriesA, offset, attackBots, activeBattles) => {
+          const factoriesB = factoriesA + offset;
+          expect(calculateAttackPressure(factoriesA, attackBots, activeBattles))
+            .toBeLessThanOrEqual(calculateAttackPressure(factoriesB, attackBots, activeBattles));
         }
       )
     );

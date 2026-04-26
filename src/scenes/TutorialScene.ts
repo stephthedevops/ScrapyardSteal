@@ -143,7 +143,7 @@ const PAGES: TutorialPage[] = [
       "  • Scrap supply per gear pile",
       "  • Max players (10 or 20)",
       "",
-      "The host can also add up to 4 AI opponents.",
+      "The host can also add up to 6 AI opponents.",
       "AI bots mine, claim tiles, and upgrade each turn.",
     ],
   },

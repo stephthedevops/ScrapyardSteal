@@ -8,7 +8,7 @@ Tracked issues that need fixing.
 
 ## Gameplay
 
-(None — resolved)
+- [ ] Claiming a gear tile and mining it in the same click may double-deduct resources
 
 ## UI
 

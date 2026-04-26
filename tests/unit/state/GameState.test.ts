@@ -23,7 +23,7 @@ describe("Player", () => {
     const player = new Player();
     expect(player.resources).toBe(0);
     expect(player.attack).toBe(1);
-    expect(player.defense).toBe(1);
+    expect(player.defense).toBe(0);
     expect(player.tileCount).toBe(1);
   });
 });
