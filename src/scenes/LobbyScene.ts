@@ -701,18 +701,18 @@ export class LobbyScene extends Phaser.Scene {
     this.configPanelObjects.push(overlay);
 
     // Panel box
-    const panelBox = this.add.rectangle(400, 340, 500, 540, 0x1a1a2e, 0.95)
+    const panelBox = this.add.rectangle(400, 300, 500, 480, 0x1a1a2e, 0.95)
       .setDepth(PANEL_DEPTH + 1).setStrokeStyle(2, 0x3a3a2a);
     this.configPanelObjects.push(panelBox);
 
     // Title
-    const title = this.add.text(400, 110, "⚙ SERVER CONFIG", {
+    const title = this.add.text(400, 80, "⚙ SERVER CONFIG", {
       fontSize: "18px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
     this.configPanelObjects.push(title);
 
     // --- TIME LIMIT SECTION ---
-    const timeLabel = this.add.text(400, 145, "TIME LIMIT", {
+    const timeLabel = this.add.text(400, 112, "TIME LIMIT", {
       fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
     this.configPanelObjects.push(timeLabel);
@@ -730,9 +730,9 @@ export class LobbyScene extends Phaser.Scene {
 
     TIME_OPTIONS.forEach((opt, i) => {
       const x = 220 + i * 80;
-      const bg = this.add.rectangle(x, 172, 70, 24, BUTTON_BG, 0.85)
+      const bg = this.add.rectangle(x, 139, 70, 24, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const lbl = this.add.text(x, 172, opt.label, {
+      const lbl = this.add.text(x, 139, opt.label, {
         fontSize: "11px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
 
@@ -762,7 +762,7 @@ export class LobbyScene extends Phaser.Scene {
     });
 
     // --- MATCH FORMAT SECTION ---
-    const formatLabel = this.add.text(400, 200, "MATCH FORMAT", {
+    const formatLabel = this.add.text(400, 167, "MATCH FORMAT", {
       fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
     this.configPanelObjects.push(formatLabel);
@@ -778,9 +778,9 @@ export class LobbyScene extends Phaser.Scene {
 
     FORMAT_OPTIONS.forEach((opt, i) => {
       const x = 270 + i * 130;
-      const bg = this.add.rectangle(x, 227, 110, 24, BUTTON_BG, 0.85)
+      const bg = this.add.rectangle(x, 194, 110, 24, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const lbl = this.add.text(x, 227, opt.label, {
+      const lbl = this.add.text(x, 194, opt.label, {
         fontSize: "11px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
 
@@ -811,7 +811,7 @@ export class LobbyScene extends Phaser.Scene {
     // --- GEAR SCRAP SECTION ---
     let selectedScrap = this.room?.state?.gearScrapSupply ?? 1000;
 
-    const scrapLabel = this.add.text(400, 255, "GEAR SCRAP", {
+    const scrapLabel = this.add.text(400, 222, "GEAR SCRAP", {
       fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
     this.configPanelObjects.push(scrapLabel);
@@ -823,9 +823,9 @@ export class LobbyScene extends Phaser.Scene {
 
     SCRAP_OPTIONS.forEach((val, i) => {
       const x = 220 + i * 90;
-      const bg = this.add.rectangle(x, 282, 72, 24, BUTTON_BG, 0.85)
+      const bg = this.add.rectangle(x, 249, 72, 24, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const lbl = this.add.text(x, 282, `${val}`, {
+      const lbl = this.add.text(x, 249, `${val}`, {
         fontSize: "12px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
 
@@ -856,7 +856,7 @@ export class LobbyScene extends Phaser.Scene {
     // --- MAX PLAYERS SECTION ---
     let selectedMaxPlayers = this.room?.state?.maxPlayers ?? 10;
 
-    const maxPlayersLabel = this.add.text(400, 310, "MAX PLAYERS", {
+    const maxPlayersLabel = this.add.text(400, 277, "MAX PLAYERS", {
       fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
     this.configPanelObjects.push(maxPlayersLabel);
@@ -868,9 +868,9 @@ export class LobbyScene extends Phaser.Scene {
 
     MAX_PLAYER_OPTIONS.forEach((val, i) => {
       const x = 350 + i * 100;
-      const bg = this.add.rectangle(x, 337, 80, 24, BUTTON_BG, 0.85)
+      const bg = this.add.rectangle(x, 304, 80, 24, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const lbl = this.add.text(x, 337, `${val}`, {
+      const lbl = this.add.text(x, 304, `${val}`, {
         fontSize: "12px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
 
@@ -899,7 +899,7 @@ export class LobbyScene extends Phaser.Scene {
     });
 
     // --- AI PLAYERS SECTION ---
-    const aiLabel = this.add.text(400, 370, "AI PLAYERS", {
+    const aiLabel = this.add.text(400, 337, "AI PLAYERS", {
       fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
     this.configPanelObjects.push(aiLabel);
@@ -925,7 +925,7 @@ export class LobbyScene extends Phaser.Scene {
         }
       });
 
-      const countLabel = this.add.text(400, 393, `${aiPlayers.length} / 20`, {
+      const countLabel = this.add.text(400, 360, `${aiPlayers.length} / 6`, {
         fontSize: "12px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
       aiEntryObjects.push(countLabel);
@@ -935,7 +935,7 @@ export class LobbyScene extends Phaser.Scene {
         const col = idx % 2;
         const row = Math.floor(idx / 2);
         const x = col === 0 ? 210 : 410;
-        const y = 415 + row * 24;
+        const y = 382 + row * 24;
         const icon = this.add.text(x, y, "🤖", {
           fontSize: "13px", fontFamily: FONT,
         }).setDepth(PANEL_DEPTH + 2);
@@ -948,9 +948,9 @@ export class LobbyScene extends Phaser.Scene {
       });
 
       // + button
-      const plusBg = this.add.rectangle(350, 393, 28, 22, BUTTON_BG, 0.85)
+      const plusBg = this.add.rectangle(350, 360, 28, 22, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const plusLbl = this.add.text(350, 393, "+", {
+      const plusLbl = this.add.text(350, 360, "+", {
         fontSize: "14px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
       aiEntryObjects.push(plusBg, plusLbl);
@@ -970,9 +970,9 @@ export class LobbyScene extends Phaser.Scene {
       });
 
       // − button
-      const minusBg = this.add.rectangle(450, 393, 28, 22, BUTTON_BG, 0.85)
+      const minusBg = this.add.rectangle(450, 360, 28, 22, BUTTON_BG, 0.85)
         .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-      const minusLbl = this.add.text(450, 393, "−", {
+      const minusLbl = this.add.text(450, 360, "−", {
         fontSize: "14px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
       aiEntryObjects.push(minusBg, minusLbl);
@@ -992,9 +992,9 @@ export class LobbyScene extends Phaser.Scene {
     const aiCleanup = { entries: aiEntryObjects };
 
     // --- DONE BUTTON ---
-    const doneBg = this.add.rectangle(400, 490, 140, 32, 0x3a6a2a, 0.9)
+    const doneBg = this.add.rectangle(400, 515, 140, 32, 0x3a6a2a, 0.9)
       .setDepth(PANEL_DEPTH + 2).setInteractive({ useHandCursor: true });
-    const doneLbl = this.add.text(400, 490, "DONE", {
+    const doneLbl = this.add.text(400, 515, "DONE", {
       fontSize: "14px", color: GOLD, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(PANEL_DEPTH + 3);
     this.configPanelObjects.push(doneBg, doneLbl);

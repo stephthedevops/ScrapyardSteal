@@ -215,6 +215,7 @@ export class HUDManager {
         backgroundColor: "#1a1a1acc",
         padding: { x: 16, y: 10 },
         align: "center",
+        wordWrap: { width: GAME_WIDTH - 80 },
       })
       .setOrigin(0.5, 0.5)
       .setDepth(HUD_DEPTH + 2)
@@ -506,10 +507,14 @@ export class HUDManager {
     let yOffset = 0;
     sorted.forEach((team, idx) => {
       const y = headerY + 28 + yOffset;
-      const rank = this.scene.add.text(120, y, `${idx + 1}.`, {
+      const rankStr = `${idx + 1}. `;
+      const rank = this.scene.add.text(120, y, rankStr, {
         fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
-      }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
+      }).setOrigin(0, 0).setDepth(POPUP_DEPTH + 2);
       this.statsPopupElements.push(rank);
+
+      // Position name immediately after the rank number
+      const nameX = 120 + rank.width;
 
       // Word-wrap name at 30 chars per line
       const words = team.id.split(" ");
@@ -527,10 +532,10 @@ export class HUDManager {
       if (currentLine) lines.push(currentLine);
       const displayName = lines.join("\n");
 
-      const name = this.scene.add.text(nameCol, y, displayName, {
+      const name = this.scene.add.text(nameX, y, displayName, {
         fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
         lineSpacing: 1,
-      }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
+      }).setOrigin(0, 0).setDepth(POPUP_DEPTH + 2);
       this.statsPopupElements.push(name);
 
       const values = [
@@ -540,7 +545,7 @@ export class HUDManager {
       values.forEach((v, i) => {
         const t = this.scene.add.text(statCols[i], y, v, {
           fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
-        }).setOrigin(1, 0.5).setDepth(POPUP_DEPTH + 2);
+        }).setOrigin(1, 0).setDepth(POPUP_DEPTH + 2);
         this.statsPopupElements.push(t);
       });
 
