@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://itch.io/jam/gamedevjs-2026"><img src="https://img.shields.io/badge/Gamedev.js_Jam-2026-ff5722?style=for-the-badge&logo=itch.io&logoColor=white" alt="Gamedev.js Jam 2026"/></a>
-  <a href="https://wavedash.com/playtest/scrapyard-steal/433395d9-d241-4ea4-911b-3e539f42ba40"><img src="https://img.shields.io/badge/Wavedash-Play_Now-7b2ff7?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0yIDEybDQtNCA0IDQgNC00IDQgNCA0LTRNMiAxNmw0LTQgNCA0IDQtNCA0IDQgNC00Ii8+PC9zdmc+" alt="Play on Wavedash"/></a>
+  <a href="https://wavedash.com/games/scrapyard-steal"><img src="https://img.shields.io/badge/Wavedash-Play_Now-7b2ff7?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0yIDEybDQtNCA0IDQgNC00IDQgNCA0LTRNMiAxNmw0LTQgNCA0IDQtNCA0IDQgNC00Ii8+PC9zdmc+" alt="Play on Wavedash"/></a>
   <a href="https://felartaillier.itch.io/scrapyardsteal"><img src="https://img.shields.io/badge/itch.io-Play_Now-fa5c5c?style=for-the-badge&logo=itch.io&logoColor=white" alt="Play on itch.io"/></a>
   <img src="https://img.shields.io/badge/Theme-Machines-e0a030?style=for-the-badge" alt="Theme: Machines"/>
   <img src="https://img.shields.io/badge/Engine-Phaser_3-4a7fa5?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyTDIgN2wxMCA1IDEwLTV6TTIgMTdsMTAgNSAxMC01TTIgMTJsMTAgNSAxMC01Ii8+PC9zdmc+" alt="Phaser 3"/>
@@ -29,7 +29,7 @@
 ---
 
 <p align="center">
-  🎮 <a href="https://stephthedevops.github.io/ScrapyardSteal/"><strong>Play Now on GitHub Pages</strong></a> · <a href="https://felartaillier.itch.io/scrapyardsteal"><strong>Play on itch.io</strong></a> · <a href="https://wavedash.com/playtest/scrapyard-steal/433395d9-d241-4ea4-911b-3e539f42ba40"><strong>Play on Wavedash</strong></a>
+  🎮 <a href="https://stephthedevops.github.io/ScrapyardSteal/"><strong>Play Now on GitHub Pages</strong></a> · <a href="https://felartaillier.itch.io/scrapyardsteal"><strong>Play on itch.io</strong></a> · <a href="https://wavedash.com/games/scrapyard-steal"><strong>Play on Wavedash</strong></a>
 </p>
 
 ---
@@ -336,7 +336,7 @@ npm run test:all      # Vitest tests + Playwright e2e tests
 | **Server** | [Colyseus Cloud](https://cloud.colyseus.io/) | US-ORD region, managed via `.colyseus-cloud.json` and `ecosystem.config.js` (PM2) |
 | **Client** | [GitHub Pages](https://stephthedevops.github.io/ScrapyardSteal/) | Static build from `dist/`, auto-deployed |
 | **Client** | [itch.io](https://felartaillier.itch.io/scrapyardsteal) | Uploaded as `dist.zip` via `npm run build:prod` |
-| **Client** | [Wavedash](https://wavedash.com/playtest/scrapyard-steal/433395d9-d241-4ea4-911b-3e539f42ba40) | Static hosting via `@wvdsh/sdk-js`, configured in `wavedash.toml` |
+| **Client** | [Wavedash](https://wavedash.com/games/scrapyard-steal) | Static hosting via `@wvdsh/sdk-js`, configured in `wavedash.toml` |
 
 ### Production Build
 
