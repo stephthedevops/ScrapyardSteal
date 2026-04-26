@@ -28,7 +28,7 @@
 ---
 
 <p align="center">
-  🎮 <a href="https://stephthedevops.github.io/ScrapyardSteal/"><strong>Play Now on GitHub Pages</strong></a> · <a href="https://felartaillier.itch.io/scrapyardsteal"><strong>Play on itch.io</strong></a>
+  🎮 <a href="https://stephthedevops.github.io/ScrapyardSteal/"><strong>Play Now on GitHub Pages</strong></a> · <a href="https://felartaillier.itch.io/scrapyardsteal"><strong>Play on itch.io</strong></a> · <a href="https://wavedash.com/playtest/scrapyard-steal/433395d9-d241-4ea4-911b-3e539f42ba40"><strong>Play on Wavedash</strong></a>
 </p>
 
 ---
@@ -338,7 +338,7 @@ npm run test:all      # Vitest tests + Playwright e2e tests
 | **Server** | [Colyseus Cloud](https://cloud.colyseus.io/) | US-ORD region, managed via `.colyseus-cloud.json` and `ecosystem.config.js` (PM2) |
 | **Client** | [GitHub Pages](https://stephthedevops.github.io/ScrapyardSteal/) | Static build from `dist/`, auto-deployed |
 | **Client** | [itch.io](https://felartaillier.itch.io/scrapyardsteal) | Uploaded as `dist.zip` via `npm run build:prod` |
-| **Client** | [Wavedash](https://wavedash.com/) | Static hosting via `@wvdsh/sdk-js`, configured in `wavedash.toml` |
+| **Client** | [Wavedash](https://wavedash.com/playtest/scrapyard-steal/433395d9-d241-4ea4-911b-3e539f42ba40) | Static hosting via `@wvdsh/sdk-js`, configured in `wavedash.toml` |
 
 ### Production Build
 
