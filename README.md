@@ -1,6 +1,5 @@
 <p align="center">
   <img src="images/scrapyardsteal.png" alt="Scrapyard Steal" width="200"/>
-  <img src="images/bunnybot.png" alt="Bunnybot" width="120"/>
 </p>
 
 <h1 align="center">🏭 Scrapyard Steal</h1>
@@ -11,6 +10,8 @@
 
 <p align="center">
   <a href="https://itch.io/jam/gamedevjs-2026"><img src="https://img.shields.io/badge/Gamedev.js_Jam-2026-ff5722?style=for-the-badge&logo=itch.io&logoColor=white" alt="Gamedev.js Jam 2026"/></a>
+  <a href="https://wavedash.com/playtest/scrapyard-steal/433395d9-d241-4ea4-911b-3e539f42ba40"><img src="https://img.shields.io/badge/Wavedash-Play_Now-7b2ff7?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0yIDEybDQtNCA0IDQgNC00IDQgNCA0LTRNMiAxNmw0LTQgNCA0IDQtNCA0IDQgNC00Ii8+PC9zdmc+" alt="Play on Wavedash"/></a>
+  <a href="https://felartaillier.itch.io/scrapyardsteal"><img src="https://img.shields.io/badge/itch.io-Play_Now-fa5c5c?style=for-the-badge&logo=itch.io&logoColor=white" alt="Play on itch.io"/></a>
   <img src="https://img.shields.io/badge/Theme-Machines-e0a030?style=for-the-badge" alt="Theme: Machines"/>
   <img src="https://img.shields.io/badge/Engine-Phaser_3-4a7fa5?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyTDIgN2wxMCA1IDEwLTV6TTIgMTdsMTAgNSAxMC01TTIgMTJsMTAgNSAxMC01Ii8+PC9zdmc+" alt="Phaser 3"/>
   <img src="https://img.shields.io/badge/Multiplayer-Colyseus-3d8a8a?style=for-the-badge" alt="Colyseus"/>
@@ -60,6 +61,8 @@ A multiplayer clicker/strategy game where 2–20 players compete in a shared scr
 
 Built for the [Gamedev.js Jam 2026](https://itch.io/jam/gamedevjs-2026) (Theme: **Machines**).
 
+<img src="images/bunnybot.png" alt="Bunnybot" width="100%"/>
+
 ## 🎮 How to Play
 
 | Action | Control |
@@ -106,9 +109,6 @@ Built for the [Gamedev.js Jam 2026](https://itch.io/jam/gamedevjs-2026) (Theme: 
 </p>
 <p align="center"><em>Expand your territory, mine gears, and battle rival machines on the scrapyard grid.</em></p>
 
-<p align="center">
-  <img src="images/playerActions.png" alt="Player actions — attacking, defending, and collecting" width="700"/>
-</p>
 <p align="center"><em>Buy ATK, DEF, and COL bots to attack enemies, fortify tiles, and auto-mine resources.</em></p>
 
 ### Lobby & Configuration
@@ -134,9 +134,7 @@ Built for the [Gamedev.js Jam 2026](https://itch.io/jam/gamedevjs-2026) (Theme: 
 
 ### Elite Bots
 
-<p align="center">
-  <img src="images/bots.png" alt="All 8 elite secret bots" width="600"/>
-</p>
+
 
 <p align="center">
   <img src="images/bunnybot-stats.png" alt="Bunnybot Stats" width="140"/>
