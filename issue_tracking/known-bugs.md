@@ -19,7 +19,6 @@ Tracked issues that need fixing.
 - [ ] Room short code lookup uses HTTP GET which may fail with CORS on some deployments
 - [ ] No validation that short code is unique across server restarts (in-memory only)
 - [ ] Host should have a ♻ button next to room code to regenerate a new room and transfer lobby state
-- [ ] Color is stored on the player but should conceptually be per-player not per-team (verify display logic)
 
 ## From Code Audit
 

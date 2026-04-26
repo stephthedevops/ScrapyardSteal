@@ -172,3 +172,8 @@ Items that have been implemented and verified.
 - [x] Prominent game timer warning when time is low — 3-2-1-TIME! countdown in last 3 seconds
 - [x] No forfeit/leave button during game — 🚪 Leave button implemented in GameScene
 - [x] Reroll button position is fixed and may overlap player list with many players — Resolved: 3-column player list layout keeps entries above y=275 even with 20 players; reroll button at y=295 has sufficient clearance
+
+## Issue Sync — Code Audit
+
+- [x] Color is stored on the player but should conceptually be per-player not per-team — Verified: color field is per-player in schema, display logic correctly renders your team in your chosen color
+- [x] Background music — Industrial/ambient scrapyard soundtrack — Implemented: no-flower-land-loop.wav plays on loop from MenuScene with MusicToggle across all scenes

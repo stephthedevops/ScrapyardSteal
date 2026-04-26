@@ -169,12 +169,18 @@ export class GameScene extends Phaser.Scene {
 
         // Wire upgrade button callbacks
         this.hudManager.onUpgradeAttack = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.attack ?? 0))) return;
           this.networkManager.sendUpgradeAttack();
         };
         this.hudManager.onUpgradeDefense = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.defense ?? 0))) return;
           this.networkManager.sendUpgradeDefense();
         };
         this.hudManager.onUpgradeCollection = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.collection ?? 0))) return;
           this.networkManager.sendUpgradeCollection();
         };
         this.hudManager.onCollectorClick = () => {
@@ -212,12 +218,18 @@ export class GameScene extends Phaser.Scene {
         this.hudManager = new HUDManager(this);
 
         this.hudManager.onUpgradeAttack = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.attack ?? 0))) return;
           this.networkManager.sendUpgradeAttack();
         };
         this.hudManager.onUpgradeDefense = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.defense ?? 0))) return;
           this.networkManager.sendUpgradeDefense();
         };
         this.hudManager.onUpgradeCollection = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.collection ?? 0))) return;
           this.networkManager.sendUpgradeCollection();
         };
         this.hudManager.onCollectorClick = () => {
@@ -235,6 +247,17 @@ export class GameScene extends Phaser.Scene {
       }
       this.onStateUpdate(state);
     }
+  }
+
+  /** Check if the effective player can afford a cost; play error sound if not. */
+  private canAffordOrError(cost: number): boolean {
+    const effectiveId = this.getEffectivePlayerId(this.room.state);
+    const player = this.room.state.players.get(effectiveId);
+    if (!player || player.resources < cost) {
+      this.sound.play("errorSfx", { volume: 0.5 });
+      return false;
+    }
+    return true;
   }
 
   private spawnTilesRegistered = false;
@@ -264,9 +287,11 @@ export class GameScene extends Phaser.Scene {
       this.spawnTilesRegistered = true;
     }
 
-    // Update gear tiles — remove depleted ones
+    // Update gear tiles — add newly spawned ones, remove depleted ones
     state.tiles.forEach((tile: any) => {
-      if (!tile.hasGear) {
+      if (tile.hasGear) {
+        this.gridRenderer!.setGearTile(tile.x, tile.y);
+      } else {
         this.gridRenderer!.removeGearTile(tile.x, tile.y);
       }
     });

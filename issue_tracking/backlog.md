@@ -23,7 +23,6 @@ Post-jam features and improvements. Not blocking submission but worth building a
 - [ ] Machine sprites — Unique factory/machine art per player
 - [ ] Tile sprites — Replace colored rectangles with scrapyard tile art
 - [ ] Sound effects — Claim, upgrade, conflict, absorption, gear mine
-- [ ] Background music — Industrial/ambient scrapyard soundtrack
 - [ ] Camera pan/zoom — Scroll and zoom on larger grids
 - [ ] Minimap — Overview of the full grid when zoomed in
 - [ ] Animations — Smooth tile transitions instead of instant color swaps
