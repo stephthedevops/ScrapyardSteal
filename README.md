@@ -99,6 +99,45 @@ Built for the [Gamedev.js Jam 2026](https://itch.io/jam/gamedevjs-2026) (Theme: 
 
 ## 📸 Screenshots
 
+### Gameplay
+
+<p align="center">
+  <img src="images/gamePlayScreenshot.png" alt="Gameplay — expanding territory and battling for tiles" width="700"/>
+</p>
+<p align="center"><em>Expand your territory, mine gears, and battle rival machines on the scrapyard grid.</em></p>
+
+<p align="center">
+  <img src="images/playerActions.png" alt="Player actions — attacking, defending, and collecting" width="700"/>
+</p>
+<p align="center"><em>Buy ATK, DEF, and COL bots to attack enemies, fortify tiles, and auto-mine resources.</em></p>
+
+### Lobby & Configuration
+
+<p align="center">
+  <img src="images/gameLobbyScreenshot.png" alt="Game lobby — pick your color and bot name" width="400"/>
+  <img src="images/serverConfigScreenshot.png" alt="Server config — host settings for time, format, AI" width="400"/>
+</p>
+<p align="center"><em>Left: Pick your color and bot name in the lobby. Right: Host configures match settings.</em></p>
+
+<p align="center">
+  <img src="images/publicServerListScreenshot.png" alt="Public server list — browse and join open games" width="500"/>
+</p>
+<p align="center"><em>Browse public lobbies and jump into a game with Quick Play.</em></p>
+
+### Team & Stats
+
+<p align="center">
+  <img src="images/TeamStatsScreenshot.png" alt="Team stats popup — tiles, bots, scrap overview" width="400"/>
+  <img src="images/teamMemberNudgeScreenshot.png" alt="Team member nudge — absorbed players help their team" width="400"/>
+</p>
+<p align="center"><em>Left: Full team stats breakdown. Right: Absorbed players contribute to their new team.</em></p>
+
+### Elite Bots
+
+<p align="center">
+  <img src="images/bots.png" alt="All 8 elite secret bots" width="600"/>
+</p>
+
 <p align="center">
   <img src="images/bunnybot-stats.png" alt="Bunnybot Stats" width="140"/>
   <img src="images/tigerbot-stats.png" alt="Tigerbot Stats" width="140"/>
