@@ -50,17 +50,6 @@ export const EXTENDED_COLORS = [
 ];
 export const ALL_COLORS = [...BASE_COLORS, ...EXTENDED_COLORS];
 
-// Allowed color palette — first 10 are base, next 10 are extended (20-player mode)
-export const BASE_COLORS = [
-  0xb87333, 0x4a8a5e, 0xffd700, 0x8b5a2b, 0x7a3ea0,
-  0x0047ab, 0xff00ff, 0xff3b30, 0xdbe4eb, 0x36454f,
-];
-export const EXTENDED_COLORS = [
-  0xcda434, 0x00e5ff, 0xe8a0bf, 0x5c6670, 0xa8a495,
-  0xff375f, 0x4682b4, 0xff6b35, 0x32d74b, 0x6b4226,
-];
-export const ALL_COLORS = [...BASE_COLORS, ...EXTENDED_COLORS];
-
 export class GameRoom extends Room<GameState> {
   maxClients = 20;
   private gameLoopInterval: ReturnType<typeof this.clock.setInterval> | null = null;
