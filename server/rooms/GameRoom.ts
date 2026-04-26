@@ -35,6 +35,7 @@ export class GameRoom extends Room<GameState> {
   private hostId: string = "";
   private soloTeamTicks: number = 0;
   private gearRespawnCountdown: number = -1;
+  private gearSpawnTimer: number = 0;
   private seriesScores: Map<string, number> = new Map();
   private configuredTimeLimit: number = 300;
 
@@ -134,54 +135,7 @@ export class GameRoom extends Room<GameState> {
 
       // Factory adjective transfer — when claiming a spawn tile
       if (tile.isSpawn) {
-        // Find the original owner of this spawn tile
-        let originalOwner: Player | undefined;
-        this.state.players.forEach((p) => {
-          if (p.spawnX === x && p.spawnY === y && p.id !== leader.id) {
-            originalOwner = p;
-          }
-        });
-
-        if (originalOwner && originalOwner.absorbed) {
-          const adjToTransfer = originalOwner.nameAdj;
-          if (adjToTransfer) {
-            // Remove the adjective from the team that currently holds the absorbed player
-            const currentTeamLeaderId = originalOwner.teamId;
-            const currentTeamLeader = this.state.players.get(currentTeamLeaderId);
-            if (currentTeamLeader && currentTeamLeaderId !== leader.id) {
-              // Remove the adjective from the current team's name
-              const adjPattern = adjToTransfer + " ";
-              if (currentTeamLeader.teamName.includes(adjPattern)) {
-                currentTeamLeader.teamName = currentTeamLeader.teamName.replace(adjPattern, "");
-                // Update all team members
-                this.state.players.forEach((p) => {
-                  if (p.teamId === currentTeamLeaderId) {
-                    p.teamName = currentTeamLeader.teamName;
-                  }
-                });
-              }
-            }
-
-            // Transfer the absorbed player to the claiming team
-            originalOwner.teamId = leader.id;
-            
-            // Prepend the adjective to the claiming team's name
-            leader.teamName = `${adjToTransfer} ${leader.teamName}`;
-            originalOwner.teamName = leader.teamName;
-            // Update all team members
-            this.state.players.forEach((p) => {
-              if (p.teamId === leader.id && p.id !== leader.id) {
-                p.teamName = leader.teamName;
-              }
-            });
-          }
-
-          // Broadcast factory capture
-          this.broadcast("factoryCaptured", {
-            claimingTeamName: leader.teamName,
-            factoryAdj: adjToTransfer,
-          });
-        }
+        this.transferFactoryAdjective(tile, leader.id);
       }
     });
 
@@ -779,6 +733,72 @@ export class GameRoom extends Room<GameState> {
     console.log("GameRoom disposed");
   }
 
+  /**
+   * Handle adjective transfer when a factory (spawn) tile changes hands.
+   * Removes the factory's adjective from the losing team's name and
+   * prepends it to the gaining team's name.
+   */
+  private transferFactoryAdjective(tile: Tile, newOwnerId: string): void {
+    if (!tile.isSpawn) return;
+
+    // Find the player whose spawn point this factory is
+    let originalOwner: Player | undefined;
+    this.state.players.forEach((p) => {
+      if (p.spawnX === tile.x && p.spawnY === tile.y) {
+        originalOwner = p;
+      }
+    });
+    if (!originalOwner) return;
+
+    const adj = originalOwner.nameAdj;
+    if (!adj) return;
+
+    // Determine which team currently "holds" this adjective.
+    // The adjective belongs to whichever team the original owner is on.
+    const currentTeamLeaderId = originalOwner.absorbed ? originalOwner.teamId : originalOwner.id;
+    const currentTeamLeader = this.state.players.get(currentTeamLeaderId);
+
+    // Remove the adjective from the current team's name (if it's a different team)
+    if (currentTeamLeader && currentTeamLeaderId !== newOwnerId) {
+      // Try removing "adj " first (adjective with trailing space)
+      const withSpace = adj + " ";
+      if (currentTeamLeader.teamName.includes(withSpace)) {
+        currentTeamLeader.teamName = currentTeamLeader.teamName.replace(withSpace, "");
+      } else if (currentTeamLeader.teamName.startsWith(adj)) {
+        // Edge case: adjective is the entire prefix with no trailing space
+        currentTeamLeader.teamName = currentTeamLeader.teamName.slice(adj.length).trimStart();
+      }
+      // Propagate to all team members
+      this.state.players.forEach((p) => {
+        if (p.teamId === currentTeamLeaderId) {
+          p.teamName = currentTeamLeader.teamName;
+        }
+      });
+    }
+
+    // Transfer the original owner to the new team
+    originalOwner.teamId = newOwnerId;
+    originalOwner.absorbed = true;
+
+    // Add the adjective to the new team's name
+    const newLeader = this.state.players.get(newOwnerId);
+    if (newLeader) {
+      newLeader.teamName = `${adj} ${newLeader.teamName}`;
+      // Propagate to all team members (including the just-transferred original owner)
+      this.state.players.forEach((p) => {
+        if (p.teamId === newOwnerId && p.id !== newOwnerId) {
+          p.teamName = newLeader.teamName;
+        }
+      });
+    }
+
+    // Broadcast factory capture
+    this.broadcast("factoryCaptured", {
+      claimingTeamName: newLeader?.teamName || "",
+      factoryAdj: adj,
+    });
+  }
+
   private enterPendingAbsorption(defenderId: string, captorId: string): void {
     const defender = this.state.players.get(defenderId);
     if (!defender) return;
@@ -856,13 +876,20 @@ export class GameRoom extends Room<GameState> {
       captor.tileCount += transferCount;
       pendingPlayer.tileCount = 0;
     } else {
-      // Drop all tiles as unclaimed
+      // Self-destruct — drop all tiles as unclaimed and broadcast explosion
+      const droppedTiles: { x: number; y: number }[] = [];
       this.state.tiles.forEach((tile) => {
         if (tile.ownerId === pendingPlayerId) {
+          droppedTiles.push({ x: tile.x, y: tile.y });
           tile.ownerId = "";
         }
       });
       pendingPlayer.tileCount = 0;
+
+      // Broadcast self-destruct so all clients can play the explosion animation
+      if (droppedTiles.length > 0) {
+        this.broadcast("selfDestruct", { tiles: droppedTiles });
+      }
     }
 
     // Award captor 25% bonus scrap
@@ -892,11 +919,22 @@ export class GameRoom extends Room<GameState> {
     pendingPlayer.teamId = captorId;
     pendingPlayer.isTeamLead = false;
 
-    // Prepend absorbed player's adjective to captor's team name
+    // Prepend absorbed player's adjective to captor's team name,
+    // but only if the captor now owns the player's factory (spawn tile).
+    // If the factory was already lost/captured, the adjective was handled
+    // by transferFactoryAdjective or the battle resolution.
     if (captor) {
-      const absorbedAdj = pendingPlayer.nameAdj || pendingPlayer.teamName.split(" ").slice(0, -1).join(" ");
+      const absorbedAdj = pendingPlayer.nameAdj;
       if (absorbedAdj) {
-        captor.teamName = `${absorbedAdj} ${captor.teamName}`;
+        // Check if captor owns this player's factory
+        const ownsFactory = this.state.tiles.some(
+          (t) => t.isSpawn && t.x === pendingPlayer.spawnX && t.y === pendingPlayer.spawnY && t.ownerId === captorId
+        );
+        // Also check if the adjective is already in the captor's team name (avoid duplicates)
+        const alreadyHasAdj = captor.teamName.includes(absorbedAdj);
+        if (ownsFactory && !alreadyHasAdj) {
+          captor.teamName = `${absorbedAdj} ${captor.teamName}`;
+        }
       }
 
       // Update teamName for all players on the captor's team
@@ -1014,6 +1052,7 @@ export class GameRoom extends Room<GameState> {
 
     // Delay per-tick gear spawning for 20 seconds after round start
     this.gearRespawnCountdown = 20;
+    this.gearSpawnTimer = 0;
 
     // Start the 1-second game loop
     this.gameLoopInterval = this.clock.setInterval(() => this.gameTick(), 1000);
@@ -1073,10 +1112,10 @@ export class GameRoom extends Room<GameState> {
       // Gather leader's owned tiles
       const ownedTiles = this.state.tiles.filter((t) => t.ownerId === leader.id);
 
-      // Try to mine a gear first (on owned or unclaimed tiles adjacent to territory)
+      // Try to mine a gear first (on owned tiles or unclaimed tiles adjacent to territory)
       for (const t of this.state.tiles) {
         if (!t.hasGear || t.gearScrap <= 0) continue;
-        if (t.ownerId !== leader.id) continue;
+        if (t.ownerId !== "" && t.ownerId !== leader.id) continue; // skip enemy-owned gears
         if (t.ownerId === leader.id || isAdjacent(t.x, t.y, ownedTiles)) {
           let factoryCount = 0;
           ownedTiles.forEach((ot) => { if (ot.isSpawn) factoryCount++; });
@@ -1243,18 +1282,36 @@ export class GameRoom extends Room<GameState> {
       }
     });
 
-    // 6. Gear spawning — delayed by 20 seconds at round start
+    // 6. Gear spawning — delayed by 20 seconds at round start,
+    //    then spawns 1 gear every (21 - playerCount) seconds if
+    //    unclaimed gears < (5 + playerCount).
     if (this.gearRespawnCountdown > 0) {
       this.gearRespawnCountdown--;
     } else {
+      this.gearSpawnTimer++;
       const activePlayers = Array.from(this.state.players.values()).filter(p => !p.absorbed && !p.pendingAbsorption).length;
-      const tilesArray = [...this.state.tiles].filter((t): t is Tile => t !== undefined);
-      const gearIndices = spawnNewGears(tilesArray, Math.max(1, activePlayers));
-      for (const idx of gearIndices) {
-        const tile = this.state.tiles[idx];
-        if (tile) {
-          tile.hasGear = true;
-          tile.gearScrap = this.state.gearScrapSupply;
+      const spawnInterval = Math.max(1, 21 - activePlayers);
+
+      if (this.gearSpawnTimer >= spawnInterval) {
+        this.gearSpawnTimer = 0;
+
+        // Count unclaimed gears (gears on tiles with no owner)
+        let unclaimedGears = 0;
+        this.state.tiles.forEach((t) => {
+          if (t.hasGear && t.gearScrap > 0 && t.ownerId === "") unclaimedGears++;
+        });
+
+        const gearCap = 5 + activePlayers;
+        if (unclaimedGears < gearCap) {
+          const tilesArray = [...this.state.tiles].filter((t): t is Tile => t !== undefined);
+          const gearIndices = spawnNewGears(tilesArray, 1);
+          for (const idx of gearIndices) {
+            const tile = this.state.tiles[idx];
+            if (tile) {
+              tile.hasGear = true;
+              tile.gearScrap = this.state.gearScrapSupply;
+            }
+          }
         }
       }
     }
@@ -1359,14 +1416,41 @@ export class GameRoom extends Room<GameState> {
 
         if (defender) defender.tileCount -= 1;
 
-        // If the lost tile was a factory, check if defender still has any factories
+        // If the lost tile was a factory, remove the adjective from the losing team
         if (tile.isSpawn && defender && !defender.absorbed) {
+          // Remove the factory's adjective from the defender's team name
+          let factoryOwner: Player | undefined;
+          this.state.players.forEach((p) => {
+            if (p.spawnX === tile.x && p.spawnY === tile.y) {
+              factoryOwner = p;
+            }
+          });
+          if (factoryOwner) {
+            const adj = factoryOwner.nameAdj;
+            if (adj) {
+              const withSpace = adj + " ";
+              if (defender.teamName.includes(withSpace)) {
+                defender.teamName = defender.teamName.replace(withSpace, "");
+              } else if (defender.teamName.startsWith(adj)) {
+                defender.teamName = defender.teamName.slice(adj.length).trimStart();
+              }
+              // Propagate to all team members
+              this.state.players.forEach((p) => {
+                if (p.teamId === defenderId) {
+                  p.teamName = defender.teamName;
+                }
+              });
+              // Detach the factory owner from the team (they go "free agent" until reclaimed)
+              factoryOwner.teamId = factoryOwner.id;
+            }
+          }
+
           let hasFactory = false;
           this.state.tiles.forEach((t) => {
             if (t.isSpawn && t.ownerId === defenderId) hasFactory = true;
           });
           if (!hasFactory) {
-            // Demote to non-leader — can no longer attack or buy upgrades
+            // Lost last factory — trigger absorption (surrender or self-destruct)
             defender.isTeamLead = false;
 
             // Cancel all active battles initiated by this player
@@ -1374,6 +1458,11 @@ export class GameRoom extends Room<GameState> {
               if (bVal.attackerId === defenderId) {
                 toRemove.push(bKey);
               }
+            }
+
+            // Enter pending absorption — the team lead chooses surrender or self-destruct
+            if (!defender.pendingAbsorption && !defender.absorbed) {
+              this.enterPendingAbsorption(defenderId, battle.attackerId);
             }
           }
         }
@@ -1545,6 +1634,7 @@ export class GameRoom extends Room<GameState> {
     // Reset internal counters
     this.soloTeamTicks = 0;
     this.gearRespawnCountdown = 20;
+    this.gearSpawnTimer = 0;
 
     // Reset timer to configured time limit
     this.state.timeRemaining = this.configuredTimeLimit;

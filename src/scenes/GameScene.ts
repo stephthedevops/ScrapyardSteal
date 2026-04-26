@@ -144,6 +144,13 @@ export class GameScene extends Phaser.Scene {
       this.hudManager?.dismissCaptureChoice();
     });
 
+    // Self-destruct broadcast — play explosion animation on dropped tiles
+    this.room.onMessage("selfDestruct", (data: { tiles: { x: number; y: number }[] }) => {
+      if (!this.gridRenderer) return;
+      this.gridRenderer.playSelfDestructEffect(data.tiles);
+      this.sound.play("errorSfx", { volume: 0.8 });
+    });
+
     // Factory captured broadcast — show notification
     this.room.onMessage("factoryCaptured", (data: { claimingTeamName: string; factoryAdj: string }) => {
       if (this.gameEnded) return;
@@ -635,7 +642,19 @@ export class GameScene extends Phaser.Scene {
     let info = "";
     this.room.state.tiles.forEach((tile: any) => {
       if (tile.x === gridPos.x && tile.y === gridPos.y) {
-        if (tile.ownerId) {
+        if (tile.isSpawn) {
+          // Factory tile — show "<Adjective> Factory" for the player whose spawn this is
+          let factoryAdj = "";
+          this.room.state.players.forEach((p: any) => {
+            if (p.spawnX === tile.x && p.spawnY === tile.y) {
+              factoryAdj = p.nameAdj;
+            }
+          });
+          info = factoryAdj ? `${factoryAdj} Factory` : "Factory";
+          if (tile.hasGear && tile.gearScrap > 0) {
+            info += ` | ⚙ ${tile.gearScrap}`;
+          }
+        } else if (tile.ownerId) {
           const owner = this.room.state.players.get(tile.ownerId);
           const ownerName = owner?.teamName || tile.ownerId.slice(0, 8);
           info = `${ownerName}`;

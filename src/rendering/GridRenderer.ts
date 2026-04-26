@@ -406,4 +406,90 @@ export class GridRenderer {
     this.costLabels.forEach((label) => label.destroy());
     this.costLabels = [];
   }
+
+  /**
+   * Play a staggered explosion effect across the given tiles.
+   * Each tile gets a bright flash that expands and fades, with a slight
+   * random delay so the destruction ripples outward.
+   */
+  playSelfDestructEffect(tiles: { x: number; y: number }[]): void {
+    for (const tile of tiles) {
+      const { px, py } = this.gridToPixel(tile.x, tile.y);
+      const delay = Math.random() * 400; // stagger up to 400ms
+
+      // Orange-red explosion flash
+      const explosion = this.scene.add.rectangle(
+        px + this.tileSize / 2,
+        py + this.tileSize / 2,
+        this.tileSize,
+        this.tileSize,
+        0xff4400,
+        0.9
+      );
+      explosion.setDepth(12);
+      explosion.setAlpha(0);
+
+      this.scene.tweens.add({
+        targets: explosion,
+        alpha: { from: 0, to: 0.9 },
+        scaleX: { from: 0.3, to: 1.6 },
+        scaleY: { from: 0.3, to: 1.6 },
+        duration: 350,
+        delay,
+        ease: "Power2",
+        onComplete: () => {
+          // Second phase: white flash that fades out
+          const whiteFlash = this.scene.add.rectangle(
+            px + this.tileSize / 2,
+            py + this.tileSize / 2,
+            this.tileSize * 1.2,
+            this.tileSize * 1.2,
+            0xffffff,
+            0.7
+          );
+          whiteFlash.setDepth(12);
+
+          this.scene.tweens.add({
+            targets: whiteFlash,
+            alpha: 0,
+            scaleX: 1.8,
+            scaleY: 1.8,
+            duration: 300,
+            ease: "Power2",
+            onComplete: () => whiteFlash.destroy(),
+          });
+
+          explosion.destroy();
+        },
+      });
+
+      // Explosion emoji particle
+      const boom = this.scene.add
+        .text(px + this.tileSize / 2, py + this.tileSize / 2, "💥", {
+          fontSize: `${Math.max(8, Math.floor(this.tileSize * 0.6))}px`,
+        })
+        .setOrigin(0.5)
+        .setDepth(13)
+        .setAlpha(0);
+
+      this.scene.tweens.add({
+        targets: boom,
+        alpha: { from: 0, to: 1 },
+        y: py + this.tileSize / 2 - this.tileSize * 0.3,
+        duration: 300,
+        delay: delay + 100,
+        ease: "Power1",
+        onComplete: () => {
+          this.scene.tweens.add({
+            targets: boom,
+            alpha: 0,
+            y: py - this.tileSize * 0.2,
+            duration: 400,
+            ease: "Power2",
+            onComplete: () => boom.destroy(),
+          });
+        },
+      });
+    }
+  }
 }

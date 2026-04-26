@@ -490,15 +490,15 @@ export class HUDManager {
 
     // Team rows sorted by tiles — tighter 16px row spacing
     const sorted = [...this.cachedLeaderboardData].sort((a, b) => b.tileCount - a.tileCount);
+    let yOffset = 0;
     sorted.forEach((team, idx) => {
-      const y = headerY + 28 + idx * 16;
+      const y = headerY + 28 + yOffset;
       const rank = this.scene.add.text(120, y, `${idx + 1}.`, {
         fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
       }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
       this.statsPopupElements.push(rank);
 
-      // Word-wrap name at 30 chars per line — absorptions that grow the name
-      // also remove a team row, so the extra line height is a wash
+      // Word-wrap name at 30 chars per line
       const words = team.id.split(" ");
       const lines: string[] = [];
       let currentLine = "";
@@ -530,6 +530,10 @@ export class HUDManager {
         }).setOrigin(1, 0.5).setDepth(POPUP_DEPTH + 2);
         this.statsPopupElements.push(t);
       });
+
+      // Advance Y: base row height + 1 blank line per extra wrap line
+      const extraLines = lines.length - 1;
+      yOffset += 16 + extraLines * 16;
     });
 
     // Close button
@@ -643,7 +647,7 @@ export class HUDManager {
 
     // Surrender button
     const surrenderBtn = this.scene.add
-      .text(width / 2 - 100, height / 2 + 50, "⚔ Surrender Tiles", {
+      .text(width / 2 - 100, height / 2 + 50, "🏳️ Surrender Tiles", {
         fontSize: "16px",
         color: "#ffffff",
         backgroundColor: "#444444",
@@ -660,9 +664,9 @@ export class HUDManager {
     });
     this.captureChoiceElements.push(surrenderBtn);
 
-    // Drop button
+    // Self-destruct button
     const dropBtn = this.scene.add
-      .text(width / 2 + 100, height / 2 + 50, "💀 Drop Tiles", {
+      .text(width / 2 + 100, height / 2 + 50, "💥 Self Destruct", {
         fontSize: "16px",
         color: "#ffffff",
         backgroundColor: "#444444",
