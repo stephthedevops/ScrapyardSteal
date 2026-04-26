@@ -396,29 +396,29 @@ export class GameRoom extends Room<GameState> {
 
     // Mine scrap from a gear tile
     this.onMessage("mineGear", (client, data: { x: number; y: number }) => {
-      if (this.state.phase !== "active") return;
-      if (!this.checkRateLimit(client.sessionId, "mineGear")) return;
+      if (this.state.phase !== "active") { console.log("[mineGear] rejected: phase =", this.state.phase); return; }
+      if (!this.checkRateLimit(client.sessionId, "mineGear")) { console.log("[mineGear] rejected: rate limited"); return; }
       const player = this.state.players.get(client.sessionId);
-      if (!player) return;
-      if (player.pendingAbsorption) return;
+      if (!player) { console.log("[mineGear] rejected: no player"); return; }
+      if (player.pendingAbsorption) { console.log("[mineGear] rejected: pendingAbsorption"); return; }
 
       // Determine the team leader
       let leader = player;
       if (player.absorbed && player.teamId) {
         const teamLeader = this.state.players.get(player.teamId);
-        if (!teamLeader || teamLeader.absorbed) return;
+        if (!teamLeader || teamLeader.absorbed) { console.log("[mineGear] rejected: absorbed leader issue"); return; }
         leader = teamLeader;
       }
-      if (leader.pendingAbsorption) return;
+      if (leader.pendingAbsorption) { console.log("[mineGear] rejected: leader pendingAbsorption"); return; }
 
       // Bounds check
-      if (data.x < 0 || data.x >= this.state.gridWidth || data.y < 0 || data.y >= this.state.gridHeight) return;
+      if (data.x < 0 || data.x >= this.state.gridWidth || data.y < 0 || data.y >= this.state.gridHeight) { console.log("[mineGear] rejected: out of bounds", data); return; }
 
       const tile = this.state.tiles.find((t) => t.x === data.x && t.y === data.y);
-      if (!tile || !tile.hasGear || tile.gearScrap <= 0) return;
+      if (!tile || !tile.hasGear || tile.gearScrap <= 0) { console.log("[mineGear] rejected: no gear tile at", data, "tile:", tile ? { hasGear: tile.hasGear, gearScrap: tile.gearScrap } : "null"); return; }
 
       // Only mine if tile is unclaimed or owned by the team leader
-      if (tile.ownerId !== "" && tile.ownerId !== leader.id) return;
+      if (tile.ownerId !== "" && tile.ownerId !== leader.id) { console.log("[mineGear] rejected: ownership mismatch, tile owner:", tile.ownerId, "leader:", leader.id); return; }
 
       // Count factories (spawn tiles) owned by the team leader
       let factoryCount = 0;
@@ -432,8 +432,7 @@ export class GameRoom extends Room<GameState> {
       const extracted = Math.min(baseExtract, tile.gearScrap);
       tile.gearScrap = Math.max(0, tile.gearScrap - extracted);
       leader.resources += extracted;
-
-      // Remove gear when depleted
+      console.log("[mineGear] SUCCESS: extracted", extracted, "scrap for", leader.id, "at", data, "remaining:", tile.gearScrap, "total resources:", leader.resources);
       if (tile.gearScrap <= 0) {
         tile.hasGear = false;
       }

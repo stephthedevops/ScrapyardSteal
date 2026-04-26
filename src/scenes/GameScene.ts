@@ -605,6 +605,7 @@ export class GameScene extends Phaser.Scene {
 
     if (tileHasGear && (tileOwnerId === "" || tileOwnerId === effectiveId)) {
       // Optimistic mine flash before sending network message
+      console.log("[mineGear] client sending mineGear at", gridPos, "tileOwnerId:", tileOwnerId, "effectiveId:", effectiveId);
       const localPlayer = this.room.state.players.get(this.localSessionId);
       const mineFlashColor = (localPlayer?.color ?? -1) >= 0 ? localPlayer!.color : 0xffd700;
       this.gridRenderer!.playMineFlash(gridPos.x, gridPos.y, mineFlashColor);
@@ -614,6 +615,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (!actionTaken) {
+      console.log("[click] no action taken at", gridPos, "tileOwnerId:", tileOwnerId, "tileHasGear:", tileHasGear, "effectiveId:", effectiveId);
       this.sound.play("errorSfx", { volume: 0.5 });
     }
   }
