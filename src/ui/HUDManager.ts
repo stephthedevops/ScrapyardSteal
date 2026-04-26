@@ -215,6 +215,7 @@ export class HUDManager {
         backgroundColor: "#1a1a1acc",
         padding: { x: 16, y: 10 },
         align: "center",
+        wordWrap: { width: GAME_WIDTH - 80 },
       })
       .setOrigin(0.5, 0.5)
       .setDepth(HUD_DEPTH + 2)
@@ -424,12 +425,17 @@ export class HUDManager {
     }
   }
 
-  /** Store full team data for the stats popup */
+  /** Store full team data for the stats popup; re-render if open */
   updateTeamStats(teams: { name: string; tiles: number; attack: number; defense: number; collection: number; factories: number; scrap: number }[]): void {
     this.cachedLeaderboardData = teams.map((t) => ({
       id: t.name, tileCount: t.tiles, attack: t.attack, defense: t.defense,
       collection: t.collection, factories: t.factories, resources: t.scrap,
     }));
+
+    // Re-render the popup every tick if it's currently open
+    if (this.statsPopupElements.length > 0) {
+      this.renderStatsPopup();
+    }
   }
 
   /** Toggle the full-screen stats popup */
@@ -439,6 +445,14 @@ export class HUDManager {
       this.statsPopupElements = [];
       return;
     }
+    this.renderStatsPopup();
+  }
+
+  /** Build (or rebuild) the stats popup from cached data */
+  private renderStatsPopup(): void {
+    // Tear down any existing elements first
+    this.statsPopupElements.forEach((el) => el.destroy());
+    this.statsPopupElements = [];
 
     const POPUP_DEPTH = 200;
 
@@ -493,10 +507,14 @@ export class HUDManager {
     let yOffset = 0;
     sorted.forEach((team, idx) => {
       const y = headerY + 28 + yOffset;
-      const rank = this.scene.add.text(120, y, `${idx + 1}.`, {
+      const rankStr = `${idx + 1}. `;
+      const rank = this.scene.add.text(120, y, rankStr, {
         fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
-      }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
+      }).setOrigin(0, 0).setDepth(POPUP_DEPTH + 2);
       this.statsPopupElements.push(rank);
+
+      // Position name immediately after the rank number
+      const nameX = 120 + rank.width;
 
       // Word-wrap name at 30 chars per line
       const words = team.id.split(" ");
@@ -514,10 +532,10 @@ export class HUDManager {
       if (currentLine) lines.push(currentLine);
       const displayName = lines.join("\n");
 
-      const name = this.scene.add.text(nameCol, y, displayName, {
+      const name = this.scene.add.text(nameX, y, displayName, {
         fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
         lineSpacing: 1,
-      }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
+      }).setOrigin(0, 0).setDepth(POPUP_DEPTH + 2);
       this.statsPopupElements.push(name);
 
       const values = [
@@ -527,7 +545,7 @@ export class HUDManager {
       values.forEach((v, i) => {
         const t = this.scene.add.text(statCols[i], y, v, {
           fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
-        }).setOrigin(1, 0.5).setDepth(POPUP_DEPTH + 2);
+        }).setOrigin(1, 0).setDepth(POPUP_DEPTH + 2);
         this.statsPopupElements.push(t);
       });
 

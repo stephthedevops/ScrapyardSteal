@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { addMusicToggle } from "../ui/MusicToggle";
+import { SERVER_HTTP_URL } from "../config/serverUrl";
 
 const AMBER = "#e0a030";
 const GOLD = "#ffcc44";
@@ -114,7 +115,7 @@ export class MenuScene extends Phaser.Scene {
     aboutBg.on("pointerover", () => aboutBg.setFillStyle(BUTTON_HOVER, 0.9));
     aboutBg.on("pointerout", () => aboutBg.setFillStyle(BUTTON_BG, 0.7));
     aboutBg.on("pointerdown", () => this.showAboutPopup());
-    this.add.container(400, 575, [aboutBg, aboutLabel]).setSize(260, 25);
+    this.add.container(400, 575, [aboutBg, aboutLabel]).setSize(260, 25).setName("aboutContainer");
 
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
       if (!this.joinMode) return;
@@ -162,6 +163,7 @@ export class MenuScene extends Phaser.Scene {
     (this.children.getByName("pasteBtn") as Phaser.GameObjects.Text)?.setAlpha(1);
     this.enterLobbyBtn.setAlpha(1).setVisible(true);
     this.backBtn.setAlpha(1).setVisible(true);
+    (this.children.getByName("aboutContainer") as Phaser.GameObjects.Container)?.setAlpha(0).setVisible(false);
   }
 
   private hideJoinInput(): void {
@@ -177,6 +179,7 @@ export class MenuScene extends Phaser.Scene {
     this.howToPlayBtn.setAlpha(1).setVisible(true);
     this.quickPlayBtn.setAlpha(0).setVisible(false);
     this.publicGamesBtn.setAlpha(0).setVisible(false);
+    (this.children.getByName("aboutContainer") as Phaser.GameObjects.Container)?.setAlpha(1).setVisible(true);
   }
 
   private updateRoomCodeDisplay(): void {
@@ -233,10 +236,7 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(202);
     this.publicGamesContentElements.push(loadingText);
 
-    const serverUrl = (import.meta as any).env?.VITE_SERVER_URL || "ws://localhost:2567";
-    const httpUrl = serverUrl.replace("ws://", "http://").replace("wss://", "https://");
-
-    fetch(`${httpUrl}/public/list`)
+    fetch(`${SERVER_HTTP_URL}/public/list`)
       .then((res) => res.json())
       .then((data: { rooms: { code: string; roomId: string; playerCount: number }[] }) => {
         if (loadingText.active) loadingText.destroy();
