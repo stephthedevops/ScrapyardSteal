@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Tile } from "../../../server/state/GameState";
 import {
-  calculateBorderPressure,
+  calculateAttackPressure,
   calculateTileClaimCost,
   calculateUpgradeCost,
   findBorders,
@@ -20,16 +20,23 @@ function makeTile(x: number, y: number, ownerId = ""): Tile {
   return t;
 }
 
-describe("calculateBorderPressure", () => {
+describe("calculateAttackPressure", () => {
   /**
    * **Validates: Requirements 1.1**
+   * calculateAttackPressure(factories, attackBots, activeBattles)
+   * returns factories + floor(attackBots / activeBattles)
    */
-  it("3.1 returns attack * borderTileCount for several input pairs", () => {
-    expect(calculateBorderPressure(3, 4)).toBe(12);
-    expect(calculateBorderPressure(1, 0)).toBe(0);
-    expect(calculateBorderPressure(0, 5)).toBe(0);
-    expect(calculateBorderPressure(10, 10)).toBe(100);
-    expect(calculateBorderPressure(7, 3)).toBe(21);
+  it("3.1 returns factories + floor(attackBots / activeBattles) for several input sets", () => {
+    // 1 factory, 4 bots, 1 battle → 1 + 4 = 5
+    expect(calculateAttackPressure(1, 4, 1)).toBe(5);
+    // 0 factories, 0 bots → 0 + 0 = 0
+    expect(calculateAttackPressure(0, 0, 1)).toBe(0);
+    // 2 factories, 6 bots, 3 battles → 2 + floor(6/3) = 4
+    expect(calculateAttackPressure(2, 6, 3)).toBe(4);
+    // 1 factory, 5 bots, 2 battles → 1 + floor(5/2) = 3
+    expect(calculateAttackPressure(1, 5, 2)).toBe(3);
+    // activeBattles defaults to 1
+    expect(calculateAttackPressure(1, 3)).toBe(4);
   });
 });
 
@@ -51,8 +58,8 @@ describe("calculateUpgradeCost", () => {
   /**
    * **Validates: Requirements 1.3**
    */
-  it("3.3 returns 50 + (5 * currentStatValue) for values 0, 1 and 10", () => {
-    expect(calculateUpgradeCost(0)).toBe(50);
+  it("3.3 returns BASE + (PER_LEVEL * currentStatValue) for values 1 and 10", () => {
+    // Formula: 50 + (5 × currentStatValue)
     expect(calculateUpgradeCost(1)).toBe(55);
     expect(calculateUpgradeCost(10)).toBe(100);
   });

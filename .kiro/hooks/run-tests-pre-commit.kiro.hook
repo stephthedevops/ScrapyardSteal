@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Run Tests Pre-Commit",
+  "description": "Runs the Vitest test suite before any commit is made, to catch regressions before they enter version control.",
+  "version": "1",
+  "when": {
+    "type": "preToolUse",
+    "toolTypes": [
+      ".*git.*commit.*"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "npm run test"
+  }
+}

@@ -88,15 +88,17 @@ describe("isAdjacent", () => {
 });
 
 describe("calculateGridSize", () => {
-  it("1.9 returns ceil(30 * sqrt(playerCount / 10)) for several values", () => {
-    // playerCount=10 → ceil(30 * sqrt(1)) = 30
-    expect(calculateGridSize(10)).toBe(30);
-    // playerCount=1 → ceil(30 * sqrt(0.1)) = ceil(9.4868...) = 10
-    expect(calculateGridSize(1)).toBe(10);
-    // playerCount=40 → ceil(30 * sqrt(4)) = ceil(60) = 60
-    expect(calculateGridSize(40)).toBe(60);
-    // playerCount=5 → ceil(30 * sqrt(0.5)) = ceil(21.213...) = 22
-    expect(calculateGridSize(5)).toBe(22);
+  it("1.9 returns 10 + playerCount clamped to [12, 20]", () => {
+    // playerCount=1 → 11, clamped to 12
+    expect(calculateGridSize(1)).toBe(12);
+    // playerCount=2 → 12
+    expect(calculateGridSize(2)).toBe(12);
+    // playerCount=5 → 15
+    expect(calculateGridSize(5)).toBe(15);
+    // playerCount=10 → 20
+    expect(calculateGridSize(10)).toBe(20);
+    // playerCount=40 → 50, clamped to 20
+    expect(calculateGridSize(40)).toBe(20);
   });
 });
 

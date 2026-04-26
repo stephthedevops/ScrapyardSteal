@@ -16,6 +16,39 @@ import {
 } from "../logic/ConflictEngine";
 import { generateAIName } from "../logic/aiNames";
 import { sanitizeName } from "../logic/sanitize";
+import {
+  RATE_LIMIT_MS,
+  BASE_TILE_DEFENSE,
+  DEFENSE_PER_BOT,
+  MAX_DEFENSE_BOTS_PER_TILE,
+  BASE_MINE_EXTRACT,
+  MAX_STAT_VALUE,
+  GEAR_RESPAWN_DELAY_SECONDS,
+  GEAR_CAP_BASE,
+  SOLO_TEAM_TICKS_TO_WIN,
+  MAX_AI_PLAYERS,
+  AI_SURRENDER_DELAY_MS,
+  CAPTURE_CHOICE_TIMEOUT_MS,
+  GAME_TICK_MS,
+  BATTLE_TICK_MS,
+  ATTACKER_ATTRITION_THRESHOLD,
+  ATTACKER_ATTRITION_CHANCE,
+  DEFENSE_BOT_THRESHOLDS,
+  DEFENSE_BOT_REPAIR_CHANCE,
+  CAPTURE_SCRAP_BONUS_PERCENT,
+  SERIES_ROUND_DELAY_MS,
+} from "../config/gameConfig";
+
+// Allowed color palette — first 10 are base, next 10 are extended (20-player mode)
+export const BASE_COLORS = [
+  0xb87333, 0x4a8a5e, 0xffd700, 0x8b5a2b, 0x7a3ea0,
+  0x0047ab, 0xff00ff, 0xff3b30, 0xdbe4eb, 0x36454f,
+];
+export const EXTENDED_COLORS = [
+  0xcda434, 0x00e5ff, 0xe8a0bf, 0x5c6670, 0xa8a495,
+  0xff375f, 0x4682b4, 0xff6b35, 0x32d74b, 0x6b4226,
+];
+export const ALL_COLORS = [...BASE_COLORS, ...EXTENDED_COLORS];
 
 // Allowed color palette — first 10 are base, next 10 are extended (20-player mode)
 export const BASE_COLORS = [
@@ -47,7 +80,6 @@ export class GameRoom extends Room<GameState> {
 
   /** Rate limiting: track last action timestamp per player per action type */
   private lastActionTime: Map<string, Map<string, number>> = new Map();
-  private static readonly RATE_LIMIT_MS = 100; // 100ms minimum between same-type actions
 
   /** Check if an action is rate-limited for a player. Returns true if allowed. */
   private checkRateLimit(sessionId: string, action: string): boolean {
@@ -58,7 +90,7 @@ export class GameRoom extends Room<GameState> {
       this.lastActionTime.set(sessionId, playerActions);
     }
     const lastTime = playerActions.get(action) ?? 0;
-    if (now - lastTime < GameRoom.RATE_LIMIT_MS) return false;
+    if (now - lastTime < RATE_LIMIT_MS) return false;
     playerActions.set(action, now);
     return true;
   }
@@ -147,7 +179,7 @@ export class GameRoom extends Room<GameState> {
       if (player.pendingAbsorption) return;
 
       const cost = calculateUpgradeCost(player.attack);      if (player.resources < cost) return;
-      if (player.attack >= 50) return; // max cap
+      if (player.attack >= MAX_STAT_VALUE) return; // max cap
 
       player.resources -= cost;
       player.attack += 1;
@@ -171,7 +203,7 @@ export class GameRoom extends Room<GameState> {
 
       const cost = calculateUpgradeCost(leader.defense);
       if (leader.resources < cost) return;
-      if (leader.defense >= 50) return; // max cap
+      if (leader.defense >= MAX_STAT_VALUE) return; // max cap
 
       leader.resources -= cost;
       leader.defense += 1;
@@ -216,7 +248,7 @@ export class GameRoom extends Room<GameState> {
 
       // Count bots already on this tile (max 4)
       const botsOnTile = defenseBots.filter((b) => b.x === data.x && b.y === data.y).length;
-      if (botsOnTile >= 4) return;
+      if (botsOnTile >= MAX_DEFENSE_BOTS_PER_TILE) return;
 
       // Must have available defense bots (defense count > placed count)
       if (defenseBots.length >= leader.defense) return;
@@ -271,12 +303,12 @@ export class GameRoom extends Room<GameState> {
 
       // Calculate tile's current defense: base 5 + 5 per defense bot on this tile
       const defender = this.state.players.get(tile.ownerId);
-      let tileDefense = 5;
+      let tileDefense = BASE_TILE_DEFENSE;
       if (defender) {
         let defenseBots: { x: number; y: number }[] = [];
         try { defenseBots = JSON.parse(defender.defenseBotsJSON); } catch { defenseBots = []; }
         const botsOnTile = defenseBots.filter((b) => b.x === data.x && b.y === data.y).length;
-        tileDefense = 5 + botsOnTile * 5;
+        tileDefense = BASE_TILE_DEFENSE + botsOnTile * DEFENSE_PER_BOT;
       }
 
       this.activeBattles.set(key, {
@@ -310,7 +342,7 @@ export class GameRoom extends Room<GameState> {
 
       const cost = calculateUpgradeCost(leader.collection);
       if (leader.resources < cost) return;
-      if (leader.collection >= 50) return; // max cap
+      if (leader.collection >= MAX_STAT_VALUE) return; // max cap
 
       leader.resources -= cost;
       leader.collection += 1;
@@ -400,7 +432,7 @@ export class GameRoom extends Room<GameState> {
       const multiplier = Math.max(1, factoryCount);
 
       // Extract scrap = 5 × factory multiplier, capped by remaining gearScrap
-      const baseExtract = 5 * multiplier;
+      const baseExtract = BASE_MINE_EXTRACT * multiplier;
       const extracted = Math.min(baseExtract, tile.gearScrap);
       tile.gearScrap = Math.max(0, tile.gearScrap - extracted);
       leader.resources += extracted;
@@ -558,7 +590,7 @@ export class GameRoom extends Room<GameState> {
       // Count existing AI players
       let aiCount = 0;
       this.state.players.forEach((p) => { if (p.isAI) aiCount++; });
-      if (aiCount >= 20) return;
+      if (aiCount >= MAX_AI_PLAYERS) return;
 
       // Auto-assign color from the allowed palette
       const aiColor = this.getNextAvailableColor();
@@ -801,7 +833,10 @@ export class GameRoom extends Room<GameState> {
     // Add the adjective to the new team's name
     const newLeader = this.state.players.get(newOwnerId);
     if (newLeader) {
-      newLeader.teamName = `${adj} ${newLeader.teamName}`;
+      const alreadyHasAdj = newLeader.teamName.split(" ").includes(adj);
+      if (!alreadyHasAdj) {
+        newLeader.teamName = `${adj} ${newLeader.teamName}`;
+      }
       // Propagate to all team members (including the just-transferred original owner)
       this.state.players.forEach((p) => {
         if (p.teamId === newOwnerId && p.id !== newOwnerId) {
@@ -844,7 +879,7 @@ export class GameRoom extends Room<GameState> {
       // AI auto-surrenders after 2 seconds
       const timer = this.clock.setTimeout(() => {
         this.resolveCapture(defenderId, "surrender");
-      }, 2000);
+      }, AI_SURRENDER_DELAY_MS);
       this.pendingTimers.set(defenderId, timer);
     } else {
       // Send choice prompt to the human player's client
@@ -858,7 +893,7 @@ export class GameRoom extends Room<GameState> {
       // Start 10-second timeout — auto-resolves as "drop"
       const timer = this.clock.setTimeout(() => {
         this.resolveCapture(defenderId, "drop");
-      }, 10000);
+      }, CAPTURE_CHOICE_TIMEOUT_MS);
       this.pendingTimers.set(defenderId, timer);
     }
   }
@@ -912,7 +947,7 @@ export class GameRoom extends Room<GameState> {
 
     // Award captor 25% bonus scrap
     if (captor && !captor.absorbed) {
-      captor.resources += Math.floor(0.25 * pendingPlayer.resources);
+      captor.resources += Math.floor(CAPTURE_SCRAP_BONUS_PERCENT * pendingPlayer.resources);
     }
 
     // Send captureResolved to the pending player's client
@@ -949,7 +984,7 @@ export class GameRoom extends Room<GameState> {
           (t) => t.isSpawn && t.x === pendingPlayer.spawnX && t.y === pendingPlayer.spawnY && t.ownerId === captorId
         );
         // Also check if the adjective is already in the captor's team name (avoid duplicates)
-        const alreadyHasAdj = captor.teamName.includes(absorbedAdj);
+        const alreadyHasAdj = captor.teamName.split(" ").includes(absorbedAdj);
         if (ownsFactory && !alreadyHasAdj) {
           captor.teamName = `${absorbedAdj} ${captor.teamName}`;
         }
@@ -1069,14 +1104,14 @@ export class GameRoom extends Room<GameState> {
     this.configuredTimeLimit = this.state.timeRemaining;
 
     // Delay per-tick gear spawning for 20 seconds after round start
-    this.gearRespawnCountdown = 20;
+    this.gearRespawnCountdown = GEAR_RESPAWN_DELAY_SECONDS;
     this.gearSpawnTimer = 0;
 
     // Start the 1-second game loop
-    this.gameLoopInterval = this.clock.setInterval(() => this.gameTick(), 1000);
+    this.gameLoopInterval = this.clock.setInterval(() => this.gameTick(), GAME_TICK_MS);
 
     // Start the 500ms battle tick
-    this.battleTickInterval = this.clock.setInterval(() => this.battleTick(), 500);
+    this.battleTickInterval = this.clock.setInterval(() => this.battleTick(), BATTLE_TICK_MS);
 
     console.log(
       `Game started: ${gridSize}x${gridSize} grid, ${playerIds.length} players`
@@ -1137,7 +1172,7 @@ export class GameRoom extends Room<GameState> {
         let factoryCount = 0;
         ownedTiles.forEach((ot) => { if (ot.isSpawn) factoryCount++; });
         const multiplier = Math.max(1, factoryCount);
-        const extracted = Math.min(5 * multiplier, t.gearScrap);
+        const extracted = Math.min(BASE_MINE_EXTRACT * multiplier, t.gearScrap);
         t.gearScrap -= extracted;
         leader.resources += extracted;
         if (t.gearScrap <= 0) t.hasGear = false;
@@ -1170,10 +1205,10 @@ export class GameRoom extends Room<GameState> {
       // Try to upgrade (prefer attack, then defense)
       const atkCost = calculateUpgradeCost(leader.attack);
       const defCost = calculateUpgradeCost(leader.defense);
-      if (leader.resources >= atkCost && leader.attack < 50) {
+      if (leader.resources >= atkCost && leader.attack < MAX_STAT_VALUE) {
         leader.resources -= atkCost;
         leader.attack += 1;
-      } else if (leader.resources >= defCost && leader.defense < 50) {
+      } else if (leader.resources >= defCost && leader.defense < MAX_STAT_VALUE) {
         leader.resources -= defCost;
         leader.defense += 1;
       }
@@ -1218,12 +1253,12 @@ export class GameRoom extends Room<GameState> {
 
           // Calculate tile defense
           const defender = this.state.players.get(target.ownerId);
-          let tileDefense = 5;
+          let tileDefense = BASE_TILE_DEFENSE;
           if (defender) {
             let defenseBots: { x: number; y: number }[] = [];
             try { defenseBots = JSON.parse(defender.defenseBotsJSON); } catch { defenseBots = []; }
             const botsOnTile = defenseBots.filter((b) => b.x === target.x && b.y === target.y).length;
-            tileDefense = 5 + botsOnTile * 5;
+            tileDefense = BASE_TILE_DEFENSE + botsOnTile * DEFENSE_PER_BOT;
           }
 
           this.activeBattles.set(key, {
@@ -1270,7 +1305,7 @@ export class GameRoom extends Room<GameState> {
 
         // Mine gear if tile has scrap
         if (tile.hasGear && tile.gearScrap > 0) {
-          const baseExtract = 5 * multiplier;
+          const baseExtract = BASE_MINE_EXTRACT * multiplier;
           const extracted = Math.min(baseExtract, tile.gearScrap);
           tile.gearScrap = Math.max(0, tile.gearScrap - extracted);
           player.resources += extracted;
@@ -1317,7 +1352,7 @@ export class GameRoom extends Room<GameState> {
           if (t.hasGear && t.gearScrap > 0 && t.ownerId === "") unclaimedGears++;
         });
 
-        const gearCap = 5 + activePlayers;
+        const gearCap = GEAR_CAP_BASE + activePlayers;
         if (unclaimedGears < gearCap) {
           const tilesArray = [...this.state.tiles].filter((t): t is Tile => t !== undefined);
           const gearIndices = spawnNewGears(tilesArray, 1);
@@ -1335,14 +1370,14 @@ export class GameRoom extends Room<GameState> {
     // 7. Check if only one team remains — end game after 2 consecutive seconds
     const activeTeams = new Set<string>();
     this.state.players.forEach((player) => {
-      if (!player.absorbed) {
-        activeTeams.add(player.id);
+      if (!player.absorbed || player.pendingAbsorption) {
+        activeTeams.add(player.teamId || player.id);
       }
     });
 
     if (activeTeams.size <= 1 && this.state.players.size > 1) {
       this.soloTeamTicks++;
-      if (this.soloTeamTicks >= 2) {
+      if (this.soloTeamTicks >= SOLO_TEAM_TICKS_TO_WIN) {
         this.handleRoundEnd();
       }
     } else {
@@ -1393,16 +1428,16 @@ export class GameRoom extends Room<GameState> {
       battle.damageDealt += damage;
 
       // Every 5 cumulative damage dealt, 50% chance attacker loses an attack bot
-      const prevThreshold5 = Math.floor((battle.damageDealt - damage) / 5);
-      const newThreshold5 = Math.floor(battle.damageDealt / 5);
-      if (newThreshold5 > prevThreshold5 && Math.random() < 0.5) {
+      const prevThreshold5 = Math.floor((battle.damageDealt - damage) / ATTACKER_ATTRITION_THRESHOLD);
+      const newThreshold5 = Math.floor(battle.damageDealt / ATTACKER_ATTRITION_THRESHOLD);
+      if (newThreshold5 > prevThreshold5 && Math.random() < ATTACKER_ATTRITION_CHANCE) {
         if (attacker.attack > 0) {
           attacker.attack -= 1;
         }
       }
 
       // Check if we crossed a defense bot threshold (20, 15, 10, 5)
-      const thresholds = [20, 15, 10, 5];
+      const thresholds = DEFENSE_BOT_THRESHOLDS;
       for (const threshold of thresholds) {
         if (prevDefense > threshold && battle.currentDefense <= threshold) {
           // Remove one defense bot from this tile
@@ -1414,7 +1449,7 @@ export class GameRoom extends Room<GameState> {
             defender.defenseBotsJSON = JSON.stringify(defenseBots);
 
             // 50% chance to repair — adds an unplaced bot back
-            if (Math.random() < 0.5) {
+            if (Math.random() < DEFENSE_BOT_REPAIR_CHANCE) {
               defender.defense += 1;
             }
           }
@@ -1458,7 +1493,7 @@ export class GameRoom extends Room<GameState> {
               });
 
               // Add the adjective to the attacker's team name
-              const alreadyHasAdj = attacker.teamName.includes(adj);
+              const alreadyHasAdj = attacker.teamName.split(" ").includes(adj);
               if (!alreadyHasAdj) {
                 attacker.teamName = `${adj} ${attacker.teamName}`;
                 // Propagate to all attacker's team members
@@ -1493,7 +1528,7 @@ export class GameRoom extends Room<GameState> {
             }
 
             // Enter pending absorption — the team lead chooses surrender or self-destruct
-            if (!defender.pendingAbsorption && !defender.absorbed) {
+            if (!defender.pendingAbsorption) {
               this.enterPendingAbsorption(defenderId, battle.attackerId);
             }
           }
@@ -1587,7 +1622,7 @@ export class GameRoom extends Room<GameState> {
       this.state.phase = "ended"; // temporarily ended between rounds
       this.clock.setTimeout(() => {
         this.resetForNextRound();
-      }, 5000);
+      }, SERIES_ROUND_DELAY_MS);
       console.log(`Round ${this.state.roundNumber} ended — next round in 5s`);
     }
   }
@@ -1665,7 +1700,7 @@ export class GameRoom extends Room<GameState> {
 
     // Reset internal counters
     this.soloTeamTicks = 0;
-    this.gearRespawnCountdown = 20;
+    this.gearRespawnCountdown = GEAR_RESPAWN_DELAY_SECONDS;
     this.gearSpawnTimer = 0;
 
     // Reset timer to configured time limit
@@ -1673,8 +1708,8 @@ export class GameRoom extends Room<GameState> {
 
     // Set phase to active and restart game loop
     this.state.phase = "active";
-    this.gameLoopInterval = this.clock.setInterval(() => this.gameTick(), 1000);
-    this.battleTickInterval = this.clock.setInterval(() => this.battleTick(), 500);
+    this.gameLoopInterval = this.clock.setInterval(() => this.gameTick(), GAME_TICK_MS);
+    this.battleTickInterval = this.clock.setInterval(() => this.battleTick(), BATTLE_TICK_MS);
 
     console.log(`Round ${this.state.roundNumber} started: ${gridSize}x${gridSize} grid`);
   }

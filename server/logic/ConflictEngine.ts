@@ -1,5 +1,11 @@
 import { Tile } from "../state/GameState";
 import { getAdjacentTiles } from "./GridManager";
+import {
+  TILE_CLAIM_COST_BASE,
+  TILE_CLAIM_COST_SCALE,
+  UPGRADE_COST_BASE,
+  UPGRADE_COST_PER_LEVEL,
+} from "../config/gameConfig";
 
 /**
  * Describes a border between two opposing players, including
@@ -193,7 +199,7 @@ export function resolveBorder(
  * Formula: floor(10 * (1 + 0.02 * currentTileCount))
  */
 export function calculateTileClaimCost(currentTileCount: number): number {
-  return Math.floor(10 * (1 + 0.02 * currentTileCount));
+  return Math.floor(TILE_CLAIM_COST_BASE * (1 + TILE_CLAIM_COST_SCALE * currentTileCount));
 }
 
 /**
@@ -201,5 +207,5 @@ export function calculateTileClaimCost(currentTileCount: number): number {
  * Formula: 50 + (5 × currentStatValue)
  */
 export function calculateUpgradeCost(currentStatValue: number): number {
-  return 50 + (5 * currentStatValue);
+  return UPGRADE_COST_BASE + (UPGRADE_COST_PER_LEVEL * currentStatValue);
 }

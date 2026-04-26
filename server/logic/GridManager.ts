@@ -1,4 +1,10 @@
 import { Tile } from "../state/GameState";
+import {
+  GRID_SIZE_MIN,
+  GRID_SIZE_MAX,
+  GRID_SIZE_OFFSET,
+  SPAWN_MARGIN,
+} from "../config/gameConfig";
 
 /**
  * Creates a flat array of width×height neutral tiles with x,y coordinates.
@@ -69,7 +75,7 @@ export function assignStartingPositions(
   const centerX = gridWidth / 2;
   const centerY = gridHeight / 2;
   // Radius: place players close to edges but at least 2 tiles in
-  const margin = 2;
+  const margin = SPAWN_MARGIN;
   const radius = Math.floor(Math.min(gridWidth, gridHeight) / 2) - margin;
 
   for (let i = 0; i < count; i++) {
@@ -92,7 +98,7 @@ export function assignStartingPositions(
  * Formula: 10 + playerCount, clamped to [12, 20].
  */
 export function calculateGridSize(playerCount: number): number {
-  return Math.min(20, Math.max(12, 10 + playerCount));
+  return Math.min(GRID_SIZE_MAX, Math.max(GRID_SIZE_MIN, GRID_SIZE_OFFSET + playerCount));
 }
 
 /**

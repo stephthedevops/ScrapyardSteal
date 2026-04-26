@@ -2,4 +2,7 @@
 
 Must-do items before jam submission on April 26th.
 
-(All items completed — moved to completed.md)
+## Challenge Tracks
+
+(All items completed)
+

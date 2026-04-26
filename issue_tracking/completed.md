@@ -23,6 +23,7 @@ Items that have been implemented and verified.
 - [x] Multiple lobbies — Create Game / Join Game flow with separate rooms
 - [x] Menu screen — CREATE GAME / JOIN GAME with join code input, BACK, ENTER LOBBY buttons
 - [x] English as default language
+- [x] Autopick colors — Automatically assign a unique color to each player when they enter the lobby
 
 ## Visual & Audio
 
@@ -53,6 +54,7 @@ Items that have been implemented and verified.
 - [x] Vitest + fast-check — Test infrastructure installed
 - [x] Steering rule — npm commands formatted as clickable code blocks
 - [x] Player schema restructure — nameAdj, nameNoun, teamId, teamName, isTeamLead, spawnX, spawnY
+- [x] Magic numbers throughout codebase — extract to shared constants file
 
 ## v0.3 Additions
 
@@ -138,42 +140,26 @@ Items that have been implemented and verified.
 - [x] Test full flow on itch.io (create game, join by code, play, end screen)
 - [x] Rate-limit player clicks on scrap piles to 5–10/sec
 
-## v0.5.4 — Issue Sync (Code Audit)
+## Nathan's ATK / DEF Rework
 
-- [x] Balance pass on tile claim cost, upgrade costs, and income rate
-- [x] Attack Bots: click an opponent's tile to assault it over several seconds (battleTick system)
+- [x] Attack Bots: click an opponent's tile to assault it over several seconds (~5s)
 - [x] Number of Attack Bots limits how many tiles you can assault simultaneously
-- [x] Defense Bots: select your own tiles to place defense (🛡 placement system)
+- [x] Defense Bots: select your own tiles to make them immune to conversion
 - [x] Number of Defense Bots limits how many tiles can be protected at once
-- [x] Visual indicator on defended tiles (defense value + 🛡 shown on tile)
-- [x] Improved Defenses upgrade: defense bots increase time opponents need to capture tiles
-- [x] Improved Attackers upgrade: attack pressure reduces capture time
-- [x] Improved Scrap Collection upgrade: COL Bots auto-mine scrap on placed tiles
-- [x] Capturing additional scrap piles should auto-generate 1 scrap/sec each (via COL Bot automine)
+- [x] Visual indicator on defended tiles
 
-## v0.5.5 — Issue Sync (Code Audit)
+## Nice-to-Haves — Completed
 
-- [x] Gears not spawning — Fixed: gameTick uses `[...this.state.tiles]` spread and passes active player count to `spawnNewGears`
-- [x] Color picker X marks don't update if a player disconnects and frees their color — Fixed: `onLeave` removes player from state, LobbyScene rebuilds takenColors on every state change
-- [x] Remove growth direction feature — DirectionFilter module deleted, all direction references removed from GameScene, GridRenderer, NetworkManager, GameRoom
-- [x] Factory capture choice — Implemented with surrender/drop options and broadcast
-- [x] Factory adjective transfer — Implemented in claimTile handler for spawn tiles
-- [x] Factory capture broadcast — "{claiming team} claimed the {switched player's adjective} Factory"
-- [x] Autopick colors — `getNextAvailableColor()` auto-assigns on join and AI add
-- [x] Shrink gear icon in scrap cost label — Split into cost number + smaller gear icon text objects
-- [x] Upgrade cost formula should be 50 + (5 × level) instead of flat 50×level — Fixed in `calculateUpgradeCost`
-- [x] Deploy to Wavedash — deployed and submitted
-- [x] Particle effects — Implemented as color flash tweens on conflict, absorption, and gear mine
-- [x] Update tutorial and tutorial.md to mention Quick Play
-- [x] Public Servers button on join game page — PUBLIC GAMES popup with room list and JOIN buttons
-- [x] Help button on game screen — 💡 Help hint popup with controls summary
-- [x] Game start countdown warning — 3-2-1-GO! giant overlay on game start
-- [x] Spawn tile visual distinction — 🏭 icon is visually distinct enough
-- [x] Prominent game timer warning when time is low — 3-2-1-TIME! countdown in last 3 seconds
-- [x] No forfeit/leave button during game — 🚪 Leave button implemented in GameScene
-- [x] Reroll button position is fixed and may overlap player list with many players — Resolved: 3-column player list layout keeps entries above y=275 even with 20 players; reroll button at y=295 has sufficient clearance
+- [x] Particle effects — Sparks on conflict, smoke on absorption, sparks on gear mine
+- [x] Update tutorial to mention Quick Play (join a random public game)
+- [x] Public Servers button on join game page — show a list of public lobbies to browse and pick from
 
-## Issue Sync — Code Audit
+## Backlog — Completed
 
-- [x] Color is stored on the player but should conceptually be per-player not per-team — Verified: color field is per-player in schema, display logic correctly renders your team in your chosen color
-- [x] Background music — Industrial/ambient scrapyard soundtrack — Implemented: no-flower-land-loop.wav plays on loop from MenuScene with MusicToggle across all scenes
+- [x] Performance profiling — Test with 20 players on max grid size
+
+## Gameplay — V2
+
+- [x] Factory capture choice — When a player's factory is claimed, give them the option to surrender their tiles to the captor or drop all tiles as unclaimed; broadcast "team absorbed [name]" only after the choice is made
+- [x] Factory adjective transfer — When an absorbed player's spawn factory is unclaimed, the team that lost it loses the adjective associated with that factory's player; when another player claims that factory, they steal the player and its adjective
+- [x] Factory capture broadcast — When an absorbed player's factory switches sides, broadcast "{claiming team} claimed the {switched player's adjective} Factory"

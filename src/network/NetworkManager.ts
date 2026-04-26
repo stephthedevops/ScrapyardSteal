@@ -1,5 +1,6 @@
 import { Room } from "colyseus.js";
 import { colyseusClient } from "./client";
+import { SERVER_HTTP_URL } from "../config/serverUrl";
 
 export class NetworkManager {
   private room: Room | null = null;
@@ -15,12 +16,8 @@ export class NetworkManager {
   }
 
   async joinByShortCode(shortCode: string): Promise<Room> {
-    const serverUrl =
-      import.meta.env.VITE_SERVER_URL || "ws://localhost:2567";
-    const httpUrl = serverUrl.replace("ws://", "http://").replace("wss://", "https://");
-
     const res = await fetch(
-      `${httpUrl}/lookup?code=${shortCode.toUpperCase()}`
+      `${SERVER_HTTP_URL}/lookup?code=${shortCode.toUpperCase()}`
     );
     if (!res.ok) {
       throw new Error("Room not found");
@@ -64,11 +61,7 @@ export class NetworkManager {
   }
 
   async joinPublicRoom(): Promise<Room> {
-    const serverUrl =
-      import.meta.env.VITE_SERVER_URL || "ws://localhost:2567";
-    const httpUrl = serverUrl.replace("ws://", "http://").replace("wss://", "https://");
-
-    const res = await fetch(`${httpUrl}/public`);
+    const res = await fetch(`${SERVER_HTTP_URL}/public`);
     if (!res.ok) {
       throw new Error("No public rooms available");
     }

@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "name": "Run Tests on Save",
+  "description": "Runs the Vitest test suite when TypeScript source or test files are saved, to catch regressions early.",
+  "version": "1.0.0",
+  "when": {
+    "type": "fileEdited",
+    "patterns": ["server/**/*.ts", "src/**/*.ts", "tests/**/*.ts"]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "npm run test"
+  }
+}
