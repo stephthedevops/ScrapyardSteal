@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { NetworkManager } from "../network/NetworkManager";
 import { GridRenderer } from "../rendering/GridRenderer";
 import { HUDManager } from "../ui/HUDManager";
+import { addMusicToggle } from "../ui/MusicToggle";
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 
@@ -27,6 +28,8 @@ export class GameScene extends Phaser.Scene {
   private lastActionTime: number = 0;
   private idleNudgeTimer?: Phaser.Time.TimerEvent;
   private idleNudgeElements: Phaser.GameObjects.GameObject[] = [];
+  // Active attack sounds keyed by "x,y"
+  private attackSounds: Map<string, Phaser.Sound.BaseSound> = new Map();
   private static readonly IDLE_NUDGE_MESSAGES = [
     "Help your team, you can mine, expand, defend!",
     "Your team is counting on you! Scrap, place bots, claim new tiles!",
@@ -35,6 +38,12 @@ export class GameScene extends Phaser.Scene {
 
   constructor() {
     super({ key: "GameScene" });
+  }
+
+  preload(): void {
+    this.load.audio("errorSfx", "sounds/error_01.wav");
+    this.load.audio("mineSfx", "sounds/closing-the-metal-drawer-004.wav");
+    this.load.audio("attackSfx", "sounds/machine-gtrs-loop.mp3");
   }
 
   create(data?: { room: any; networkManager: NetworkManager; sessionId: string }): void {
@@ -106,6 +115,8 @@ export class GameScene extends Phaser.Scene {
 
     // Hint button
     this.createHintButton();
+
+    addMusicToggle(this);
   }
 
   private setupStateListener(): void {
@@ -133,6 +144,13 @@ export class GameScene extends Phaser.Scene {
       this.hudManager?.dismissCaptureChoice();
     });
 
+    // Self-destruct broadcast — play explosion animation on dropped tiles
+    this.room.onMessage("selfDestruct", (data: { tiles: { x: number; y: number }[] }) => {
+      if (!this.gridRenderer) return;
+      this.gridRenderer.playSelfDestructEffect(data.tiles);
+      this.sound.play("errorSfx", { volume: 0.8 });
+    });
+
     // Factory captured broadcast — show notification
     this.room.onMessage("factoryCaptured", (data: { claimingTeamName: string; factoryAdj: string }) => {
       if (this.gameEnded) return;
@@ -158,12 +176,18 @@ export class GameScene extends Phaser.Scene {
 
         // Wire upgrade button callbacks
         this.hudManager.onUpgradeAttack = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.attack ?? 0))) return;
           this.networkManager.sendUpgradeAttack();
         };
         this.hudManager.onUpgradeDefense = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.defense ?? 0))) return;
           this.networkManager.sendUpgradeDefense();
         };
         this.hudManager.onUpgradeCollection = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.collection ?? 0))) return;
           this.networkManager.sendUpgradeCollection();
         };
         this.hudManager.onCollectorClick = () => {
@@ -201,12 +225,18 @@ export class GameScene extends Phaser.Scene {
         this.hudManager = new HUDManager(this);
 
         this.hudManager.onUpgradeAttack = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.attack ?? 0))) return;
           this.networkManager.sendUpgradeAttack();
         };
         this.hudManager.onUpgradeDefense = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.defense ?? 0))) return;
           this.networkManager.sendUpgradeDefense();
         };
         this.hudManager.onUpgradeCollection = () => {
+          const ep = this.room.state.players.get(this.getEffectivePlayerId(this.room.state));
+          if (!this.canAffordOrError(50 + 5 * (ep?.collection ?? 0))) return;
           this.networkManager.sendUpgradeCollection();
         };
         this.hudManager.onCollectorClick = () => {
@@ -224,6 +254,17 @@ export class GameScene extends Phaser.Scene {
       }
       this.onStateUpdate(state);
     }
+  }
+
+  /** Check if the effective player can afford a cost; play error sound if not. */
+  private canAffordOrError(cost: number): boolean {
+    const effectiveId = this.getEffectivePlayerId(this.room.state);
+    const player = this.room.state.players.get(effectiveId);
+    if (!player || player.resources < cost) {
+      this.sound.play("errorSfx", { volume: 0.5 });
+      return false;
+    }
+    return true;
   }
 
   private spawnTilesRegistered = false;
@@ -253,9 +294,11 @@ export class GameScene extends Phaser.Scene {
       this.spawnTilesRegistered = true;
     }
 
-    // Update gear tiles — remove depleted ones
+    // Update gear tiles — add newly spawned ones, remove depleted ones
     state.tiles.forEach((tile: any) => {
-      if (!tile.hasGear) {
+      if (tile.hasGear) {
+        this.gridRenderer!.setGearTile(tile.x, tile.y);
+      } else {
         this.gridRenderer!.removeGearTile(tile.x, tile.y);
       }
     });
@@ -283,6 +326,22 @@ export class GameScene extends Phaser.Scene {
     state.tiles.forEach((tile: any) => {
       this.gridRenderer!.renderTile(tile.x, tile.y, tile.ownerId);
     });
+
+    // Stop attack sounds for tiles no longer under attack (captured, lost, or no longer enemy)
+    for (const [atkKey, snd] of this.attackSounds) {
+      const [ax, ay] = atkKey.split(",").map(Number);
+      let stillEnemy = false;
+      state.tiles.forEach((tile: any) => {
+        if (tile.x === ax && tile.y === ay && tile.ownerId !== "" && tile.ownerId !== myTeamId) {
+          stillEnemy = true;
+        }
+      });
+      if (!stillEnemy) {
+        snd.stop();
+        snd.destroy();
+        this.attackSounds.delete(atkKey);
+      }
+    }
 
     // Get effective player stats (team leader if absorbed)
     const effectiveId = this.getEffectivePlayerId(state);
@@ -532,20 +591,39 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
+    let actionTaken = false;
+
     if (tileOwnerId === "") {
       // Unclaimed tile — try to claim it
       this.networkManager.sendClaimTile(gridPos.x, gridPos.y);
+      actionTaken = true;
     } else if (tileOwnerId !== effectiveId) {
       // Enemy tile — initiate attack
       this.networkManager.sendAttackTile(gridPos.x, gridPos.y);
+      // Start attack sound loop for this tile (if not already playing)
+      const atkKey = `${gridPos.x},${gridPos.y}`;
+      if (!this.attackSounds.has(atkKey)) {
+        const snd = this.sound.add("attackSfx", { loop: true, volume: 0.3 });
+        snd.play();
+        this.attackSounds.set(atkKey, snd);
+      }
+      actionTaken = true;
     }
 
     if (tileHasGear && (tileOwnerId === "" || tileOwnerId === effectiveId)) {
       // Optimistic mine flash before sending network message
+      console.log("[mineGear] client sending mineGear at", gridPos, "tileOwnerId:", tileOwnerId, "effectiveId:", effectiveId);
       const localPlayer = this.room.state.players.get(this.localSessionId);
       const mineFlashColor = (localPlayer?.color ?? -1) >= 0 ? localPlayer!.color : 0xffd700;
       this.gridRenderer!.playMineFlash(gridPos.x, gridPos.y, mineFlashColor);
       this.networkManager.sendMineGear(gridPos.x, gridPos.y);
+      this.sound.play("mineSfx", { volume: 0.6 });
+      actionTaken = true;
+    }
+
+    if (!actionTaken) {
+      console.log("[click] no action taken at", gridPos, "tileOwnerId:", tileOwnerId, "tileHasGear:", tileHasGear, "effectiveId:", effectiveId);
+      this.sound.play("errorSfx", { volume: 0.5 });
     }
   }
 
@@ -564,7 +642,19 @@ export class GameScene extends Phaser.Scene {
     let info = "";
     this.room.state.tiles.forEach((tile: any) => {
       if (tile.x === gridPos.x && tile.y === gridPos.y) {
-        if (tile.ownerId) {
+        if (tile.isSpawn) {
+          // Factory tile — show "<Adjective> Factory" for the player whose spawn this is
+          let factoryAdj = "";
+          this.room.state.players.forEach((p: any) => {
+            if (p.spawnX === tile.x && p.spawnY === tile.y) {
+              factoryAdj = p.nameAdj;
+            }
+          });
+          info = factoryAdj ? `${factoryAdj} Factory` : "Factory";
+          if (tile.hasGear && tile.gearScrap > 0) {
+            info += ` | ⚙ ${tile.gearScrap}`;
+          }
+        } else if (tile.ownerId) {
           const owner = this.room.state.players.get(tile.ownerId);
           const ownerName = owner?.teamName || tile.ownerId.slice(0, 8);
           info = `${ownerName}`;

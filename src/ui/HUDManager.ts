@@ -464,14 +464,22 @@ export class HUDManager {
     }).setOrigin(0.5).setDepth(POPUP_DEPTH + 2);
     this.statsPopupElements.push(title);
 
-    // Column headers
+    // Column headers — stat columns right-aligned to leave room for long team names
     const headerY = GAME_HEIGHT / 2 - 165;
-    const cols = [140, 310, 370, 420, 470, 520, 580];
-    const headers = ["Team", "Tiles", "⚔️ATK", "🛡DEF", "⚙COL", "🏭", "Scrap"];
-    headers.forEach((h, i) => {
-      const t = this.scene.add.text(cols[i], headerY, h, {
+    const nameCol = 140;
+    // Right edges of each stat column
+    const statCols = [380, 420, 460, 500, 530, 580];
+    const statHeaders = ["Tiles", "⚔️ATK", "🛡DEF", "⚙COL", "🏭", "Scrap"];
+
+    const teamHeader = this.scene.add.text(nameCol, headerY, "Team", {
+      fontSize: "11px", color: GOLD, fontFamily: FONT_FAMILY,
+    }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
+    this.statsPopupElements.push(teamHeader);
+
+    statHeaders.forEach((h, i) => {
+      const t = this.scene.add.text(statCols[i], headerY, h, {
         fontSize: "11px", color: GOLD, fontFamily: FONT_FAMILY,
-      }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
+      }).setOrigin(1, 0.5).setDepth(POPUP_DEPTH + 2);
       this.statsPopupElements.push(t);
     });
 
@@ -480,17 +488,35 @@ export class HUDManager {
       .setDepth(POPUP_DEPTH + 2);
     this.statsPopupElements.push(divider);
 
-    // Team rows sorted by tiles
+    // Team rows sorted by tiles — tighter 16px row spacing
     const sorted = [...this.cachedLeaderboardData].sort((a, b) => b.tileCount - a.tileCount);
+    let yOffset = 0;
     sorted.forEach((team, idx) => {
-      const y = headerY + 30 + idx * 22;
+      const y = headerY + 28 + yOffset;
       const rank = this.scene.add.text(120, y, `${idx + 1}.`, {
         fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
       }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
       this.statsPopupElements.push(rank);
 
-      const name = this.scene.add.text(cols[0], y, team.id.length > 22 ? team.id.slice(0, 22) + "…" : team.id, {
+      // Word-wrap name at 30 chars per line
+      const words = team.id.split(" ");
+      const lines: string[] = [];
+      let currentLine = "";
+      for (const word of words) {
+        const candidate = currentLine ? `${currentLine} ${word}` : word;
+        if (candidate.length <= 30) {
+          currentLine = candidate;
+        } else {
+          if (currentLine) lines.push(currentLine);
+          currentLine = word;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+      const displayName = lines.join("\n");
+
+      const name = this.scene.add.text(nameCol, y, displayName, {
         fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
+        lineSpacing: 1,
       }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
       this.statsPopupElements.push(name);
 
@@ -499,11 +525,15 @@ export class HUDManager {
         `${team.collection}`, `${team.factories}`, `${team.resources}`,
       ];
       values.forEach((v, i) => {
-        const t = this.scene.add.text(cols[i + 1], y, v, {
+        const t = this.scene.add.text(statCols[i], y, v, {
           fontSize: "11px", color: AMBER, fontFamily: FONT_FAMILY,
-        }).setOrigin(0, 0.5).setDepth(POPUP_DEPTH + 2);
+        }).setOrigin(1, 0.5).setDepth(POPUP_DEPTH + 2);
         this.statsPopupElements.push(t);
       });
+
+      // Advance Y: base row height + 1 blank line per extra wrap line
+      const extraLines = lines.length - 1;
+      yOffset += 16 + extraLines * 16;
     });
 
     // Close button
@@ -617,7 +647,7 @@ export class HUDManager {
 
     // Surrender button
     const surrenderBtn = this.scene.add
-      .text(width / 2 - 100, height / 2 + 50, "⚔ Surrender Tiles", {
+      .text(width / 2 - 100, height / 2 + 50, "🏳️ Surrender Tiles", {
         fontSize: "16px",
         color: "#ffffff",
         backgroundColor: "#444444",
@@ -634,9 +664,9 @@ export class HUDManager {
     });
     this.captureChoiceElements.push(surrenderBtn);
 
-    // Drop button
+    // Self-destruct button
     const dropBtn = this.scene.add
-      .text(width / 2 + 100, height / 2 + 50, "💀 Drop Tiles", {
+      .text(width / 2 + 100, height / 2 + 50, "💥 Self Destruct", {
         fontSize: "16px",
         color: "#ffffff",
         backgroundColor: "#444444",

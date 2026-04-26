@@ -44,16 +44,6 @@
     - _Preservation: Monotonicity and positivity must be maintained; max cap at 50 still rejects_
     - _Requirements: 1.3, 1.4, 2.3, 2.4, 3.4, 3.5_
 
-  - [x] 3.2 Tighten mineGear ownership guard in GameRoom.ts
-    - In `server/rooms/GameRoom.ts`, in the `mineGear` message handler
-    - Change `if (tile.ownerId !== "" && tile.ownerId !== leader.id) return;` to `if (tile.ownerId !== leader.id) return;`
-    - This rejects mining on unclaimed tiles (`ownerId === ""`), requiring prior ownership
-    - Eliminates the same-click claim+mine double-deduction exploit
-    - _Bug_Condition: isBugCondition({ bugType: "doubleMine" }) — tile.ownerId === "" AND hasGear AND actionType === "mineGear"_
-    - _Expected_Behavior: mineGear rejects when tile.ownerId !== leader.id (including unclaimed tiles)_
-    - _Preservation: Mining owned gear tiles (tile.ownerId === leader.id) continues to work normally_
-    - _Requirements: 1.2, 2.2, 3.2_
-
   - [x] 3.3 Fix gear spawning in gameTick() in GameRoom.ts
     - In `server/rooms/GameRoom.ts`, in the `gameTick()` method, gear spawning section (~line 1197)
     - Replace `spawnNewGears(this.state.tiles.toArray(), 1)` with:

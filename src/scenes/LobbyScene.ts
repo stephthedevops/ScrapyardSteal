@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { NetworkManager } from "../network/NetworkManager";
 import { generateName, formatName } from "../utils/nameGenerator";
+import { addMusicToggle } from "../ui/MusicToggle";
 
 /** Available colors players can pick — base set (10) */
 const BASE_COLOR_OPTIONS: { name: string; hex: number }[] = [
@@ -74,6 +75,8 @@ export class LobbyScene extends Phaser.Scene {
     this.currentMaxPlayers = 10;
     this.errorPopupShown = false;
     this.transitioned = false;
+
+    addMusicToggle(this);
 
     this.titleText = this.add
       .text(400, 40, "SCRAPYARD STEAL", {
@@ -225,8 +228,8 @@ export class LobbyScene extends Phaser.Scene {
       18: { adj: "Abyssal", noun: "Seahorsebot", image: "images/seahorsebot-stats.png" },
       25: { adj: "Feral", noun: "Wolfbot", image: "images/wolfbot-stats.png" },
       31: { adj: "Mythic", noun: "Axolotebot", image: "images/axolotebot-stats.png" },
-      42: { adj: "Venomous", noun: "Beebot", image: "images/beebot-stats.png" },
-      46: { adj: "Lethal", noun: "Mambabot", image: "images/mambabot-stats.png" },
+      45: { adj: "Venomous", noun: "Beebot", image: "images/beebot-stats.png" },
+      48: { adj: "Lethal", noun: "Mambabot", image: "images/mambabot-stats.png" },
     };
 
     const tagline = "Machines built to smash, weld, absorb, and kaboom.";
@@ -277,14 +280,14 @@ export class LobbyScene extends Phaser.Scene {
           if (!this.textures.exists(key)) {
             this.load.image(key, bot.image);
             this.load.once("complete", () => {
-              this.add.image(700, 200, key)
+              this.add.image(700, 400, key)
                 .setDisplaySize(200, 200)
                 .setDepth(150)
                 .setName("secretBotImage");
             });
             this.load.start();
           } else {
-            this.add.image(700, 200, key)
+            this.add.image(700, 400, key)
               .setDisplaySize(200, 200)
               .setDepth(50)
               .setName("secretBotImage");
@@ -922,7 +925,7 @@ export class LobbyScene extends Phaser.Scene {
         }
       });
 
-      const countLabel = this.add.text(400, 393, `${aiPlayers.length} / 4`, {
+      const countLabel = this.add.text(400, 393, `${aiPlayers.length} / 20`, {
         fontSize: "12px", color: AMBER, fontFamily: FONT,
       }).setOrigin(0.5).setDepth(PANEL_DEPTH + 2);
       aiEntryObjects.push(countLabel);
@@ -953,7 +956,7 @@ export class LobbyScene extends Phaser.Scene {
       aiEntryObjects.push(plusBg, plusLbl);
 
       plusBg.on("pointerdown", () => {
-        if (aiPlayers.length >= 4) return;
+        if (aiPlayers.length >= 20) return;
         // Find first available color
         const takenColors = new Set<number>();
         this.room.state.players.forEach((p: any) => {

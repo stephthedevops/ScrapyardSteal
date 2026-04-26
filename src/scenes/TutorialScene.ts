@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { addMusicToggle } from "../ui/MusicToggle";
 
 const AMBER = "#e0a030";
 const GOLD = "#ffcc44";
@@ -174,6 +175,7 @@ export class TutorialScene extends Phaser.Scene {
 
   create(): void {
     this.pageIndex = 0;
+    addMusicToggle(this);
 
     this.add.text(400, 40, "HOW TO PLAY", {
       fontSize: "30px", color: GOLD, fontFamily: FONT,
