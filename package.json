@@ -1,6 +1,6 @@
 {
   "name": "scrapyard-steal",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Multiplayer clicker/strategy game for Gamedev.js Jam 2026",
   "scripts": {
@@ -28,6 +28,7 @@
     "@playwright/test": "^1.59.1",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.1.4",
+    "@wvdsh/sdk-js": "^1.2.4",
     "fast-check": "^4.6.0",
     "nodemon": "^3.1.0",
     "ts-node": "^10.9.0",

@@ -80,8 +80,8 @@ describe("Feature: v05-server-config-ai-hints — AI Player Properties", () => {
    */
   it("Property 11: removing an AI player deletes them and frees their color", () => {
     const ALLOWED_COLORS = [
-      0xb87333, 0x4a8a5e, 0xffd700, 0x8a8a7a, 0x7a3ea0,
-      0x0047ab, 0xff00ff, 0x8b4513, 0xdbe4eb, 0x36454f,
+      0xb87333, 0x4a8a5e, 0xffd700, 0x8b5a2b, 0x7a3ea0,
+      0x0047ab, 0xff00ff, 0xff3b30, 0xdbe4eb, 0x36454f,
     ];
 
     // Generate a lobby with 1–6 players, each with a unique color from the palette.

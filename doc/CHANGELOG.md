@@ -2,6 +2,34 @@
 
 All notable changes to Scrapyard Steal.
 
+## [0.7.1] — 2026-04-25
+
+### Added
+- Wavedash integration — `@wvdsh/sdk-js` installed, `Wavedash.init()` called in Phaser postBoot callback, `wavedash.toml` config created
+- Wavedash deploy step added to Prod Build & Deploy hook (`wavedash build push`)
+- Leave Game button (🚪) — confirmation popup with AI takeover; departing player's noun gets "roid" suffix and AI takes control
+- Absorbed player idle nudge — after 7 seconds of inactivity, a random motivational message appears for 3 seconds (or click to dismiss)
+- Public Games refresh button (↻) in the server list popup
+- Colorful spinning gear decorations on gear-related tutorial pages
+- Color-coded lines in the in-game help hints popup (attack red, defense blue, gear amber)
+- COL bots now return to unplaced pool when their gear tile is fully mined out (still stay on factory tiles)
+
+### Changed
+- Upgrade cost display fixed — client now shows `50 + (5 × level)` matching the server formula (was incorrectly showing `50 × level`)
+- Color palette updates for better contrast:
+  - Verdigris: `0x2eb8a6` → `0x00e5ff` (cyan)
+  - Rusty Iron: `0x8b4513` → `0xff3b30` (bright red)
+  - Oxidized Iron: `0xc44b2f` → `0xff375f` (vivid pink-red)
+  - Tarnished Silver: `0x8a8a7a` → `0x8b5a2b` (warm brown)
+  - Palladium → Uranium: `0xe6e0d4` → `0x32d74b` (bright green)
+  - Molten → Molten Steel (label only)
+- Gear icons on tiles and cost labels render as native colorful `⚙️` emoji (no color override)
+- Tutorial page 3 ("Mining Gears") now uses colorful `⚙️` emoji instead of plain text `⚙`
+- Help (💡) and Leave (🚪) buttons moved higher to avoid being clipped by scale-to-fit
+
+### Fixed
+- Color picker X marks not updating when a player disconnects — `selectedColorIndex` now syncs from server-assigned auto-color on each state change
+
 ## [0.6.0] — 2026-04-25
 
 ### Added

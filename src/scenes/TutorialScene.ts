@@ -35,9 +35,9 @@ const PAGES: TutorialPage[] = [
     ],
   },
   {
-    title: "Mining Gears ⚙",
+    title: "Mining Gears ⚙️",
     lines: [
-      "Gear tiles (⚙) contain scrap (default 1000).",
+      "Gear tiles (⚙️) contain scrap (default 1000).",
       "Click a gear to mine it — you extract scrap",
       "equal to 5 × factories owned.",
       "",
@@ -225,11 +225,38 @@ export class TutorialScene extends Phaser.Scene {
     this.renderPage();
   }
 
+  private gearDecorations: Phaser.GameObjects.Text[] = [];
+
   private renderPage(): void {
     const page = PAGES[this.pageIndex];
     this.titleText.setText(page.title);
     this.bodyText.setText(page.lines.join("\n"));
     this.pageIndicator.setText(`${this.pageIndex + 1} / ${PAGES.length}`);
+
+    // Clean up previous gear decorations
+    this.gearDecorations.forEach((g) => g.destroy());
+    this.gearDecorations = [];
+
+    // Add colorful spinning gear decorations on gear-related pages
+    if (page.title.includes("⚙") || page.title.includes("Gear") || page.title.includes("Mining")) {
+      const colors = ["#ffd700", "#ff6b35", "#00e5ff", "#32d74b", "#ff00ff"];
+      const positions = [
+        { x: 60, y: 100 }, { x: 740, y: 100 },
+        { x: 60, y: 400 }, { x: 740, y: 400 },
+      ];
+      positions.forEach((pos, i) => {
+        const gear = this.add.text(pos.x, pos.y, "⚙", {
+          fontSize: "28px", color: colors[i % colors.length], fontFamily: FONT,
+        }).setOrigin(0.5).setAlpha(0.7);
+        this.tweens.add({
+          targets: gear,
+          angle: 360,
+          duration: 4000 + i * 500,
+          repeat: -1,
+        });
+        this.gearDecorations.push(gear);
+      });
+    }
 
     // Show/hide prev
     this.prevBtn.setAlpha(this.pageIndex > 0 ? 1 : 0.3);

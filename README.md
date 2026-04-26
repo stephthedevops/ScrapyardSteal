@@ -30,7 +30,7 @@
 
 ## What is Scrapyard Steal?
 
-A multiplayer clicker/strategy game where 2–20 players compete in a shared scrapyard. Control a factory-machine, expand your territory by claiming scrap tiles, upgrade your attack and defense, and absorb rival machines. When you absorb an opponent, they join your team and help you grow even faster.
+A multiplayer clicker/strategy game where 2–20 players compete in a shared scrapyard. Control a factory-machine, expand your territory by claiming scrap tiles, build an army of bots, and attack rival machines. When you destroy an opponent's last tile, they join your team. Lose your factory and you're demoted — but you can still help your team by building defenses and collecting scrap.
 
 Built for the [Gamedev.js Jam 2026](https://itch.io/jam/gamedevjs-2026) (Theme: **Machines**).
 
@@ -39,19 +39,37 @@ Built for the [Gamedev.js Jam 2026](https://itch.io/jam/gamedevjs-2026) (Theme: 
 | Action | Control |
 |--------|---------|
 | Claim a tile | Click an adjacent neutral tile |
-| Mine a gear | Click a ⚙ tile you own or is unclaimed |
-| Upgrade Attack | Click ⚔ ATK button |
-| Upgrade Defense | Click 🛡 DEF button |
-| Steer growth | Arrow keys (↑↓←→) to set direction |
-| Clear direction | Press same arrow again or Escape |
+| Mine a gear | Click a ⚙️ tile you own or is unclaimed |
+| Attack a tile | Click an enemy tile next to your territory |
+| Buy ⚔️ ATK Bot | Click the ATK button (team lead only) |
+| Buy 🛡️ DEF Bot | Click the DEF button |
+| Place DEF Bot | Click 🛡️ icon, then click a tile you own |
+| Buy ⚙️ COL Bot | Click the COL button |
+| Place COL Bot | Click ⚒ icon, then click a tile you own |
+| View stats | Click 📊 Stats button |
 
 ### Game Flow
 
-1. **Create or Join** — Host creates a game and shares the 5-character room code. Others join with the code.
-2. **Lobby** — Pick your color, get a random bot name (♻ to reroll), host clicks START.
-3. **Play** — Expand territory, mine gears for scrap, upgrade stats, absorb opponents.
-4. **Absorb** — When you take all of an opponent's tiles, they join your team. Their adjective stacks onto your team name.
-5. **Win** — Most tiles when the 5-minute timer runs out wins.
+1. **Create or Join** — Host creates a game and shares the 5-character room code. Others join with the code, or use Quick Play for a random public game.
+2. **Lobby** — Pick your color, get a random bot name (🎲 to reroll). Host can configure time limit (including Deathmatch), match format, scrap supply, max players, and add AI opponents.
+3. **Expand** — Claim neutral tiles adjacent to your territory. Each tile costs scrap, and the cost scales as you grow.
+4. **Mine** — Click gear tiles (⚙️) to extract scrap. Mining yields 5 × factories owned.
+5. **Build Bots** — Buy ATK bots (more simultaneous attacks), DEF bots (place on tiles for +5 defense each), and COL bots (auto-mine gears and generate factory income).
+6. **Attack** — Click enemy border tiles to start battles. Each battle tick (2×/sec) deals damage based on your attack pressure: `factories + floor(ATK bots / active battles)`. Tiles become unclaimed at 0 defense.
+7. **Defend** — Every tile has 5 base defense. Place up to 4 DEF bots per tile for up to 25 total defense. When defense drops past thresholds, bots are destroyed (50% chance to repair).
+8. **Absorb** — When a player loses all tiles, they join the attacker's team. Lose your factory and you're demoted to non-leader.
+9. **Win** — Most tiles when the timer runs out, or last team standing in Deathmatch.
+
+### Roles
+
+| Action | Team Lead | Member |
+|--------|-----------|--------|
+| Buy ⚔️ ATK Bots | ✅ | ❌ |
+| Attack tiles | ✅ | ❌ |
+| Buy 🛡️ DEF / ⚙️ COL Bots | ✅ | ✅ |
+| Place bots | ✅ | ✅ |
+| Claim tiles | ✅ | ✅ |
+| Mine gears | ✅ | ✅ |
 
 ## 🛠 Tech Stack
 
@@ -103,32 +121,36 @@ npm run build
 ```
 ├── server/                 # Colyseus server
 │   ├── index.ts            # Server entry + short code lookup endpoint
+│   ├── app.config.ts       # Colyseus Cloud config
 │   ├── rooms/
-│   │   └── GameRoom.ts     # Game room: lifecycle, messages, game loop
+│   │   └── GameRoom.ts     # Game room: lifecycle, messages, game loop, battle tick
 │   ├── logic/
 │   │   ├── GridManager.ts  # Grid init, adjacency, circular spawn placement
-│   │   └── ConflictEngine.ts # Border conflict, cost formulas
+│   │   ├── ConflictEngine.ts # Attack pressure, cost formulas
+│   │   ├── aiNames.ts      # AI bot name generation
+│   │   └── sanitize.ts     # Name sanitization
 │   └── state/
 │       └── GameState.ts    # Colyseus schema: Player, Tile, GameState
 ├── src/                    # Phaser client
 │   ├── main.ts             # Game bootstrap
 │   ├── scenes/
-│   │   ├── MenuScene.ts    # Create/Join game menu
-│   │   ├── LobbyScene.ts   # Color pick, name, room code, start
-│   │   └── GameScene.ts    # Main game: grid, HUD, input, state sync
+│   │   ├── MenuScene.ts    # Create/Join game menu + About popup
+│   │   ├── LobbyScene.ts   # Color pick, name, room code, config, AI, start
+│   │   ├── GameScene.ts    # Main game: grid, HUD, input, state sync, battles
+│   │   └── TutorialScene.ts # 13-page How to Play
 │   ├── rendering/
-│   │   └── GridRenderer.ts # Tile rendering, animations, highlights
+│   │   └── GridRenderer.ts # Tile rendering, animations, highlights, defense display
 │   ├── ui/
-│   │   └── HUDManager.ts   # Stats, leaderboard, upgrade buttons
+│   │   └── HUDManager.ts   # Stats, purchase bots, timer, stats popup, bot icons
 │   ├── network/
 │   │   ├── client.ts       # Colyseus client config
-│   │   └── NetworkManager.ts # Message wrapper
+│   │   └── NetworkManager.ts # Message wrapper (claim, attack, mine, bots, config)
 │   ├── logic/
 │   │   └── DirectionFilter.ts # Growth direction filtering
 │   └── utils/
 │       └── nameGenerator.ts # Random "Adjective Animalbot" names
 ├── issue_tracking/         # Project tracking
-├── doc/                    # Design docs, transcripts
+├── doc/                    # Design docs, changelog, transcripts
 └── tests/                  # Vitest + fast-check tests
 ```
 
@@ -136,11 +158,23 @@ npm run build
 
 - **Multiplayer** — 2–20 players in real-time via WebSockets
 - **Room codes** — 5-character codes to share and join specific games
+- **Quick Play** — Join a random public game instantly
+- **Manual combat** — Click enemy tiles to attack; battle ticks run 2×/sec
+- **Attack pressure** — Damage scales with factories and ATK bots, split across active battles
+- **Defense bots** — Place 🛡️ bots on tiles for +5 defense each (max 4 per tile, permanent)
+- **Collection bots** — Place ⚒ bots to auto-mine gears and generate passive factory income
 - **Team absorption** — Defeated players join the victor's team and keep clicking
+- **Factory demotion** — Lose your factory and you're demoted to non-leader (can't attack or buy ATK bots)
 - **Stacking names** — Each absorption adds an adjective: "Turbo Hydraulic Otterbot"
-- **Gear mining** — ⚙ tiles with 50 scrap each, mined at your attack rate
+- **Gear mining** — ⚙️ tiles with configurable scrap (default 1000), mined at 5 × factories
+- **Deathmatch mode** — Infinite time, last team standing wins
+- **Match formats** — Single match, Best of 3, Best of 5
+- **AI opponents** — Up to 4 AI bots that mine, claim, upgrade, and attack
+- **Server config** — Host configures time limit, match format, scrap supply, max players
 - **Color persistence** — Your team always shows in your chosen color on your screen
-- **10 metal colors** — Copper, Corroded Copper, Gold, Tarnished Silver, Titanium, Cobalt, Bismuth, Rusty Iron, Chromium, Tungsten
+- **10+ metal colors** — Copper, Gold, Titanium, Cobalt, Bismuth, Chromium, and more (20 in expanded mode)
+- **Stats popup** — Full-screen team stats with tiles, ATK, DEF, COL, factories, and scrap
+- **8 secret elite bots** — Hidden in the lobby tagline (find the clickable letters!)
 
 ## 🏆 Jam Challenge Tracks
 

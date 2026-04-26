@@ -198,8 +198,8 @@ export function calculateTileClaimCost(currentTileCount: number): number {
 
 /**
  * Calculates the cost to upgrade a stat (attack or defense).
- * Formula: 50 * currentStatValue
+ * Formula: 50 + (5 × currentStatValue)
  */
 export function calculateUpgradeCost(currentStatValue: number): number {
-  return 50 * currentStatValue;
+  return 50 + (5 * currentStatValue);
 }

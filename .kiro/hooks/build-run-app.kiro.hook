@@ -1,13 +1,15 @@
 {
   "enabled": true,
-  "name": "Build & Run App",
-  "description": "Builds the project for production with tsc and vite build, then starts the Colyseus game server and serves the built client with vite preview.",
-  "version": "1",
+  "name": "Prod Build & Deploy App",
+  "description": "Runs a production build (client + server) and deploys to Colyseus Cloud production environment.",
+  "version": "2",
   "when": {
     "type": "userTriggered"
   },
   "then": {
     "type": "askAgent",
-    "prompt": "Run `npm run build` to compile and bundle the project. If it succeeds, start `npm run server` (Colyseus game server) and `npm run preview` (Vite preview server for the built client) as background processes using controlBashProcess. Report the URLs and any errors."
-  }
+    "prompt": "Perform a full production build and deploy to Colyseus Cloud and Wavedash:\n\n1. Run `npm run build:prod` to build the client with the production Colyseus Cloud WebSocket URL and create dist.zip.\n2. Run `npm run server:build` to compile the server TypeScript for production.\n3. Run `npx @colyseus/cloud deploy --env production` to deploy to Colyseus Cloud production.\n4. Run `wavedash build push` to deploy the client build to Wavedash.\n\nReport the result of each step. If any step fails, stop and report the error."
+  },
+  "workspaceFolderName": "GameJam2026",
+  "shortName": "build-run-app"
 }

@@ -51,10 +51,6 @@ export class NetworkManager {
     this.room?.send("upgradeDefense", {});
   }
 
-  sendSetDirection(direction: string): void {
-    this.room?.send("setDirection", { direction });
-  }
-
   sendStartGame(): void {
     this.room?.send("startGame", {});
   }
@@ -115,6 +111,14 @@ export class NetworkManager {
 
   sendRemoveAI(aiPlayerId: string): void {
     this.room?.send("removeAI", { aiPlayerId });
+  }
+
+  sendCaptureResponse(choice: "surrender" | "drop"): void {
+    this.room?.send("captureResponse", { choice });
+  }
+
+  sendLeaveGame(): void {
+    this.room?.send("leaveGame", {});
   }
 
   onStateChange(callback: (state: any) => void): void {

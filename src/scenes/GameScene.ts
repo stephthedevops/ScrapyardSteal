@@ -2,8 +2,6 @@ import Phaser from "phaser";
 import { NetworkManager } from "../network/NetworkManager";
 import { GridRenderer } from "../rendering/GridRenderer";
 import { HUDManager } from "../ui/HUDManager";
-import { filterByDirection } from "../logic/DirectionFilter";
-
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 
@@ -13,7 +11,6 @@ export class GameScene extends Phaser.Scene {
   private hudManager: HUDManager | null = null;
   private room: any = null;
   private localSessionId: string = "";
-  private currentDirection: string = "";
   private currentTileCost: number = 10;
   private absorbedPlayerIds: Set<string> = new Set();
   private playerNameCache: Map<string, string> = new Map();
@@ -23,6 +20,18 @@ export class GameScene extends Phaser.Scene {
   private hintPopupElements: Phaser.GameObjects.GameObject[] = [];
   private placingCollector: boolean = false;
   private placingDefenseBot: boolean = false;
+  private countdownPlayed: boolean = false;
+  private endCountdownPlayed: boolean = false;
+
+  // Absorbed-player idle nudge
+  private lastActionTime: number = 0;
+  private idleNudgeTimer?: Phaser.Time.TimerEvent;
+  private idleNudgeElements: Phaser.GameObjects.GameObject[] = [];
+  private static readonly IDLE_NUDGE_MESSAGES = [
+    "Help your team, you can mine, expand, defend!",
+    "Your team is counting on you! Scrap, place bots, claim new tiles!",
+    "You are a part of an amazing team! Scrap, expand, build the bots!",
+  ];
 
   constructor() {
     super({ key: "GameScene" });
@@ -34,7 +43,6 @@ export class GameScene extends Phaser.Scene {
     this.hudManager = null;
     this.room = null;
     this.localSessionId = "";
-    this.currentDirection = "";
     this.currentTileCost = 10;
     this.absorbedPlayerIds = new Set();
     this.playerNameCache = new Map();
@@ -44,6 +52,12 @@ export class GameScene extends Phaser.Scene {
     this.placingCollector = false;
     this.placingDefenseBot = false;
     this.spawnTilesRegistered = false;
+    this.countdownPlayed = false;
+    this.endCountdownPlayed = false;
+    this.lastActionTime = 0;
+    this.idleNudgeTimer?.remove(false);
+    this.idleNudgeTimer = undefined;
+    this.idleNudgeElements = [];
 
     if (data?.room && data?.networkManager) {
       // Came from LobbyScene with an existing connection
@@ -68,9 +82,6 @@ export class GameScene extends Phaser.Scene {
         this.setupStateListener();
       });
     }
-
-    // Set up keyboard listeners for direction selection
-    this.setupDirectionKeys();
 
     // Set up tile click handler
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
@@ -109,6 +120,25 @@ export class GameScene extends Phaser.Scene {
       this.gridRenderer.playMineFlash(data.x, data.y, flashColor);
     });
 
+    // Capture choice — show modal when player's factory falls
+    this.room.onMessage("captureChoice", (data: { captorTeamName: string; timeoutSeconds: number }) => {
+      if (this.gameEnded) return;
+      this.hudManager?.showCaptureChoice(data.captorTeamName, data.timeoutSeconds, (choice) => {
+        this.networkManager.sendCaptureResponse(choice);
+      });
+    });
+
+    // Capture resolved — dismiss the modal
+    this.room.onMessage("captureResolved", () => {
+      this.hudManager?.dismissCaptureChoice();
+    });
+
+    // Factory captured broadcast — show notification
+    this.room.onMessage("factoryCaptured", (data: { claimingTeamName: string; factoryAdj: string }) => {
+      if (this.gameEnded) return;
+      this.hudManager?.showNotification(`${data.claimingTeamName} claimed the ${data.factoryAdj} Factory`);
+    });
+
     this.room.onStateChange((state: any) => {
       // On first state change with valid grid: initialize renderer and HUD
       if (!this.gridRenderer && state.gridWidth > 0) {
@@ -142,6 +172,12 @@ export class GameScene extends Phaser.Scene {
         this.hudManager.onDefenseBotClick = () => {
           this.placingDefenseBot = true;
         };
+
+        // Play start countdown on first grid initialization
+        if (!this.countdownPlayed) {
+          this.countdownPlayed = true;
+          this.playCountdown(3, "GO!", "#44ff44");
+        }
       }
 
       this.onStateUpdate(state);
@@ -179,6 +215,12 @@ export class GameScene extends Phaser.Scene {
         this.hudManager.onDefenseBotClick = () => {
           this.placingDefenseBot = true;
         };
+
+        // Play start countdown on first grid initialization
+        if (!this.countdownPlayed) {
+          this.countdownPlayed = true;
+          this.playCountdown(3, "GO!", "#44ff44");
+        }
       }
       this.onStateUpdate(state);
     }
@@ -263,9 +305,9 @@ export class GameScene extends Phaser.Scene {
       );
 
       // Calculate upgrade costs
-      const attackCost = 50 * effectivePlayer.attack;
-      const defenseCost = 50 * effectivePlayer.defense;
-      const collectionCost = 50 * (effectivePlayer.collection || 0);
+      const attackCost = 50 + (5 * effectivePlayer.attack);
+      const defenseCost = 50 + (5 * effectivePlayer.defense);
+      const collectionCost = 50 + (5 * (effectivePlayer.collection || 0));
       this.hudManager.updateUpgradeCosts(attackCost, defenseCost, collectionCost);
       this.currentTileCost = Math.floor(10 * (1 + 0.02 * effectivePlayer.tileCount));
       this.hudManager.updateTeamName(effectivePlayer.teamName || "");
@@ -336,10 +378,37 @@ export class GameScene extends Phaser.Scene {
     // Detect new absorptions and show notifications / effects
     this.detectAbsorptions(state);
 
+    // Absorbed-player idle nudge: if local player is absorbed and idle for 7s, show a message
+    const localP = state.players.get(this.localSessionId);
+    if (localP?.absorbed && !this.gameEnded) {
+      // Seed the timer on first absorbed frame
+      if (this.lastActionTime === 0) {
+        this.lastActionTime = this.time.now;
+      }
+      if (!this.idleNudgeTimer) {
+        this.idleNudgeTimer = this.time.addEvent({
+          delay: 1000,
+          loop: true,
+          callback: () => this.checkIdleNudge(),
+        });
+      }
+    } else {
+      // Not absorbed (or game ended) — tear down nudge tracking
+      this.idleNudgeTimer?.remove(false);
+      this.idleNudgeTimer = undefined;
+      this.dismissIdleNudge();
+    }
+
     // Check for game end
     if (state.phase === "ended" && !this.gameEnded) {
       this.gameEnded = true;
       this.showEndScreen(state);
+    }
+
+    // End-game countdown: flash 3-2-1-TIME! when timer hits 3
+    if (state.timeRemaining > 0 && state.timeRemaining <= 3 && !this.endCountdownPlayed && !this.gameEnded) {
+      this.endCountdownPlayed = true;
+      this.playCountdown(state.timeRemaining, "TIME!", "#ff4444");
     }
 
     // Highlight claimable tiles for local player
@@ -375,18 +444,11 @@ export class GameScene extends Phaser.Scene {
       return neighbors.some((n) => playerTileSet.has(`${n.x},${n.y}`));
     });
 
-    // Filter by direction if one is selected
-    const filtered = filterByDirection(
-      claimable,
-      playerTiles,
-      this.currentDirection
-    );
-
     // Read local player color for highlight tinting
     const localPlayer = state.players.get(this.localSessionId);
     const playerColor = (localPlayer?.color ?? -1) >= 0 ? localPlayer!.color : 0xffcc44;
 
-    this.gridRenderer.highlightClaimable(filtered, this.currentDirection, this.currentTileCost, playerColor);
+    this.gridRenderer.highlightClaimable(claimable, this.currentTileCost, playerColor);
   }
 
   private detectAbsorptions(state: any): void {
@@ -436,6 +498,11 @@ export class GameScene extends Phaser.Scene {
 
   private handleTileClick(pointer: Phaser.Input.Pointer): void {
     if (!this.gridRenderer || !this.room) return;
+    if (this.hudManager?.isCaptureChoiceVisible()) return;
+
+    // Record activity for idle nudge tracking
+    this.lastActionTime = this.time.now;
+    this.dismissIdleNudge();
 
     const gridPos = this.gridRenderer.pixelToGrid(pointer.x, pointer.y);
     if (!gridPos) return;
@@ -588,7 +655,7 @@ export class GameScene extends Phaser.Scene {
 
   private createHintButton(): void {
     const btn = this.add
-      .text(10, GAME_HEIGHT - 12, "💡 Help", {
+      .text(10, GAME_HEIGHT - 36, "💡 Help", {
         fontSize: "18px",
         fontFamily: "monospace",
       })
@@ -597,6 +664,65 @@ export class GameScene extends Phaser.Scene {
       .setDepth(100);
 
     btn.on("pointerdown", () => this.showHintPopup());
+
+    const leaveBtn = this.add
+      .text(10, GAME_HEIGHT - 14, "🚪 Leave", {
+        fontSize: "14px",
+        color: "#ff4444",
+        fontFamily: "monospace",
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(100);
+
+    leaveBtn.on("pointerover", () => leaveBtn.setColor("#ff8888"));
+    leaveBtn.on("pointerout", () => leaveBtn.setColor("#ff4444"));
+    leaveBtn.on("pointerdown", () => this.showLeaveConfirmation());
+  }
+
+  private leaveConfirmElements: Phaser.GameObjects.GameObject[] = [];
+
+  private showLeaveConfirmation(): void {
+    if (this.leaveConfirmElements.length > 0) return;
+
+    const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.7)
+      .setDepth(400).setInteractive();
+    this.leaveConfirmElements.push(overlay);
+
+    const box = this.add.rectangle(400, 280, 380, 140, 0x1a1a2e, 0.95)
+      .setDepth(401).setStrokeStyle(2, 0x3a3a2a);
+    this.leaveConfirmElements.push(box);
+
+    const msg = this.add.text(400, 250, "Are you sure?\nYou will not be able to reenter this game.", {
+      fontSize: "13px", color: "#e0a030", fontFamily: "monospace",
+      align: "center",
+    }).setOrigin(0.5).setDepth(402);
+    this.leaveConfirmElements.push(msg);
+
+    const yesBtn = this.add.text(340, 310, "[YES]", {
+      fontSize: "16px", color: "#ff4444", fontFamily: "monospace",
+    }).setOrigin(0.5).setDepth(402).setInteractive({ useHandCursor: true });
+    yesBtn.on("pointerover", () => yesBtn.setColor("#ff8888"));
+    yesBtn.on("pointerout", () => yesBtn.setColor("#ff4444"));
+    yesBtn.on("pointerdown", () => {
+      this.networkManager.sendLeaveGame();
+      this.time.delayedCall(200, () => {
+        if (this.room) this.room.leave();
+        this.scene.start("MenuScene");
+      });
+    });
+    this.leaveConfirmElements.push(yesBtn);
+
+    const noBtn = this.add.text(460, 310, "[NO]", {
+      fontSize: "16px", color: "#ffcc44", fontFamily: "monospace",
+    }).setOrigin(0.5).setDepth(402).setInteractive({ useHandCursor: true });
+    noBtn.on("pointerover", () => noBtn.setColor("#ffffff"));
+    noBtn.on("pointerout", () => noBtn.setColor("#ffcc44"));
+    noBtn.on("pointerdown", () => {
+      this.leaveConfirmElements.forEach((el) => el.destroy());
+      this.leaveConfirmElements = [];
+    });
+    this.leaveConfirmElements.push(noBtn);
   }
 
   private showHintPopup(): void {
@@ -625,28 +751,29 @@ export class GameScene extends Phaser.Scene {
       .setDepth(202);
     this.hintPopupElements.push(title);
 
-    const controls = [
-      "Click neutral    → Claim tile (costs scrap)",
-      "Click gear ⚙️    → Mine scrap",
-      "Click enemy tile → Attack (team lead only)",
-      "⚔️ ATK Bot       → Max additional simultaneous attacks",
-      "🛡️ DEF Bot       → Buy defense bot",
-      "Click 🛡️ then tile → Place +5 defense (max 4)",
-      "⚙️ COL Bot       → Buy collector",
-      "Click ⚒ then tile → Place automine",
-    ].join("\n");
+    const controlLines = [
+      { text: "Click neutral    → Claim tile (costs scrap)", color: "#e0a030" },
+      { text: "Click gear ⚙️    → Mine scrap", color: "#e0a030" },
+      { text: "Click enemy tile → Attack (team lead only)", color: "#e0a030" },
+      { text: "⚔️ ATK Bot       → Max additional simultaneous attacks", color: "#ff3b30" },
+      { text: "🛡️ DEF Bot       → Buy defense bot", color: "#4682b4" },
+      { text: "Click 🛡️ then tile → Place +5 defense (max 4)", color: "#4682b4" },
+      { text: "⚙️ COL Bot       → Buy collector", color: "#e0a030" },
+      { text: "Click ⚒ then tile → Place automine", color: "#e0a030" },
+    ];
 
-    const body = this.add
-      .text(400, 285, controls, {
-        fontSize: "12px",
-        color: "#e0a030",
-        fontFamily: "monospace",
-        lineSpacing: 6,
-        align: "left",
-      })
-      .setOrigin(0.5)
-      .setDepth(202);
-    this.hintPopupElements.push(body);
+    let lineY = 230;
+    for (const line of controlLines) {
+      const lineText = this.add
+        .text(240, lineY, line.text, {
+          fontSize: "12px",
+          color: line.color,
+          fontFamily: "monospace",
+        })
+        .setDepth(202);
+      this.hintPopupElements.push(lineText);
+      lineY += 20;
+    }
 
     const closeBtn = this.add
       .text(555, 165, "✕", {
@@ -665,35 +792,119 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private setupDirectionKeys(): void {
-    const cursors = this.input.keyboard?.createCursorKeys();
-    if (!cursors) return;
+  /** Check if the absorbed player has been idle long enough to show a nudge */
+  private checkIdleNudge(): void {
+    if (this.gameEnded) return;
+    if (this.idleNudgeElements.length > 0) return; // already showing
+    const elapsed = this.time.now - this.lastActionTime;
+    if (elapsed >= 7000) {
+      this.showIdleNudge();
+    }
+  }
 
-    const directionMap: Record<string, string> = {
-      up: "north",
-      down: "south",
-      left: "west",
-      right: "east",
+  /** Display a random nudge message for absorbed idle players */
+  private showIdleNudge(): void {
+    const msgs = GameScene.IDLE_NUDGE_MESSAGES;
+    const msg = msgs[Math.floor(Math.random() * msgs.length)];
+
+    const bg = this.add
+      .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60, 500, 44, 0x1a1a2e, 0.92)
+      .setDepth(300)
+      .setStrokeStyle(2, 0xe0a030)
+      .setInteractive({ useHandCursor: true });
+    this.idleNudgeElements.push(bg);
+
+    const text = this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60, msg, {
+        fontSize: "12px",
+        color: "#ffcc44",
+        fontFamily: "monospace",
+        align: "center",
+        wordWrap: { width: 480 },
+      })
+      .setOrigin(0.5)
+      .setDepth(301);
+    this.idleNudgeElements.push(text);
+
+    // Dismiss on click
+    bg.on("pointerdown", () => {
+      this.dismissIdleNudge();
+      this.lastActionTime = this.time.now;
+    });
+
+    // Auto-dismiss after 3 seconds
+    const autoTimer = this.time.delayedCall(3000, () => {
+      this.dismissIdleNudge();
+      // Reset so another nudge can fire after 7 more idle seconds
+      this.lastActionTime = this.time.now;
+    });
+    this.idleNudgeElements.push(autoTimer as unknown as Phaser.GameObjects.GameObject);
+  }
+
+  /** Remove the idle nudge banner if visible */
+  private dismissIdleNudge(): void {
+    for (const el of this.idleNudgeElements) {
+      if (el instanceof Phaser.Time.TimerEvent) {
+        el.remove(false);
+      } else {
+        el.destroy();
+      }
+    }
+    this.idleNudgeElements = [];
+  }
+
+  /**
+   * Play a giant countdown overlay: 3 → 2 → 1 → label.
+   * Each number appears at 50% opacity, scales up, and fades out over 1 second.
+   * @param startFrom Number to count down from (e.g. 3)
+   * @param finalLabel Text to show after reaching 0 (e.g. "GO!" or "TIME!")
+   * @param finalColor Color for the final label
+   */
+  private playCountdown(startFrom: number, finalLabel: string, finalColor: string = "#ffcc44"): void {
+    const steps: string[] = [];
+    for (let i = startFrom; i >= 1; i--) {
+      steps.push(String(i));
+    }
+    steps.push(finalLabel);
+
+    let stepIndex = 0;
+    const showNext = () => {
+      if (stepIndex >= steps.length) return;
+
+      const label = steps[stepIndex];
+      const isLast = stepIndex === steps.length - 1;
+      const color = isLast ? finalColor : "#ffffff";
+      const fontSize = isLast ? "120px" : "160px";
+
+      const text = this.add
+        .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, label, {
+          fontSize,
+          color,
+          fontFamily: "monospace",
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5)
+        .setAlpha(0.5)
+        .setDepth(500)
+        .setScale(0.5);
+
+      this.tweens.add({
+        targets: text,
+        scaleX: 1.2,
+        scaleY: 1.2,
+        alpha: 0,
+        duration: 900,
+        ease: "Power2",
+        onComplete: () => text.destroy(),
+      });
+
+      stepIndex++;
+      if (stepIndex < steps.length) {
+        this.time.delayedCall(1000, showNext);
+      }
     };
 
-    for (const [keyName, direction] of Object.entries(directionMap)) {
-      const key = cursors[keyName as keyof Phaser.Types.Input.Keyboard.CursorKeys] as Phaser.Input.Keyboard.Key;
-      key.on("down", () => {
-        if (this.currentDirection === direction) {
-          // Press same direction again to clear
-          this.currentDirection = "";
-          this.networkManager.sendSetDirection("");
-        } else {
-          this.currentDirection = direction;
-          this.networkManager.sendSetDirection(direction);
-        }
-      });
-    }
-
-    // Escape to clear direction
-    this.input.keyboard?.on("keydown-ESC", () => {
-      this.currentDirection = "";
-      this.networkManager.sendSetDirection("");
-    });
+    showNext();
   }
+
 }
