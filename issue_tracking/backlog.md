@@ -56,4 +56,3 @@ Post-jam features and improvements. Not blocking submission but worth building a
 - [ ] Leaderboard sorts players array on every state change — cache sorted order
 - [ ] No object pooling for tween animations (absorption, claim effects)
 - [ ] No feedback on failed tile claim or upgrade (silent rejection)
-- [ ] No forfeit/leave button during game

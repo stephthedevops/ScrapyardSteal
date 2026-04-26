@@ -417,8 +417,8 @@ export class GameRoom extends Room<GameState> {
       const tile = this.state.tiles.find((t) => t.x === data.x && t.y === data.y);
       if (!tile || !tile.hasGear || tile.gearScrap <= 0) return;
 
-      // Only mine if tile is owned by the team leader
-      if (tile.ownerId !== leader.id) return;
+      // Only mine if tile is unclaimed or owned by the team leader
+      if (tile.ownerId !== "" && tile.ownerId !== leader.id) return;
 
       // Count factories (spawn tiles) owned by the team leader
       let factoryCount = 0;
@@ -587,7 +587,7 @@ export class GameRoom extends Room<GameState> {
       // Count existing AI players
       let aiCount = 0;
       this.state.players.forEach((p) => { if (p.isAI) aiCount++; });
-      if (aiCount >= 4) return;
+      if (aiCount >= 20) return;
 
       // Auto-assign color from the allowed palette
       const aiColor = this.getNextAvailableColor();

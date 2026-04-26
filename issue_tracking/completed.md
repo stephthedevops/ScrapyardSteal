@@ -150,3 +150,25 @@ Items that have been implemented and verified.
 - [x] Improved Attackers upgrade: attack pressure reduces capture time
 - [x] Improved Scrap Collection upgrade: COL Bots auto-mine scrap on placed tiles
 - [x] Capturing additional scrap piles should auto-generate 1 scrap/sec each (via COL Bot automine)
+
+## v0.5.5 — Issue Sync (Code Audit)
+
+- [x] Gears not spawning — Fixed: gameTick uses `[...this.state.tiles]` spread and passes active player count to `spawnNewGears`
+- [x] Color picker X marks don't update if a player disconnects and frees their color — Fixed: `onLeave` removes player from state, LobbyScene rebuilds takenColors on every state change
+- [x] Remove growth direction feature — DirectionFilter module deleted, all direction references removed from GameScene, GridRenderer, NetworkManager, GameRoom
+- [x] Factory capture choice — Implemented with surrender/drop options and broadcast
+- [x] Factory adjective transfer — Implemented in claimTile handler for spawn tiles
+- [x] Factory capture broadcast — "{claiming team} claimed the {switched player's adjective} Factory"
+- [x] Autopick colors — `getNextAvailableColor()` auto-assigns on join and AI add
+- [x] Shrink gear icon in scrap cost label — Split into cost number + smaller gear icon text objects
+- [x] Upgrade cost formula should be 50 + (5 × level) instead of flat 50×level — Fixed in `calculateUpgradeCost`
+- [x] Deploy to Wavedash — deployed and submitted
+- [x] Particle effects — Implemented as color flash tweens on conflict, absorption, and gear mine
+- [x] Update tutorial and tutorial.md to mention Quick Play
+- [x] Public Servers button on join game page — PUBLIC GAMES popup with room list and JOIN buttons
+- [x] Help button on game screen — 💡 Help hint popup with controls summary
+- [x] Game start countdown warning — 3-2-1-GO! giant overlay on game start
+- [x] Spawn tile visual distinction — 🏭 icon is visually distinct enough
+- [x] Prominent game timer warning when time is low — 3-2-1-TIME! countdown in last 3 seconds
+- [x] No forfeit/leave button during game — 🚪 Leave button implemented in GameScene
+- [x] Reroll button position is fixed and may overlap player list with many players — Resolved: 3-column player list layout keeps entries above y=275 even with 20 players; reroll button at y=295 has sufficient clearance

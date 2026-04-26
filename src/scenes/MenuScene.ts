@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { addMusicToggle } from "../ui/MusicToggle";
 
 const AMBER = "#e0a030";
 const GOLD = "#ffcc44";
@@ -24,7 +25,16 @@ export class MenuScene extends Phaser.Scene {
     super({ key: "MenuScene" });
   }
 
+  preload(): void {
+    this.load.audio("bgMusic", "sounds/no-flower-land-loop.wav");
+  }
+
   create(): void {
+    // Start background music if not already playing (persists across scenes)
+    if (!this.sound.get("bgMusic")) {
+      this.sound.add("bgMusic", { loop: true, volume: 0.4 }).play();
+    }
+    addMusicToggle(this);
     this.joinMode = false;
     this.roomCodeInput = "";
 

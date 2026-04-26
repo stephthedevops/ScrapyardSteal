@@ -2,6 +2,26 @@
 
 All notable changes to Scrapyard Steal.
 
+## [0.8.0] — 2026-04-25
+
+### Added
+- Background music — "No Flower Land Loop" plays across all scenes (looped, persists through transitions)
+- Music on/off toggle (🔊/🔇) in top-right corner of every screen, persists across scene changes
+- Error sound effect — plays when clicking a tile that can't be mined, claimed, or attacked
+- Mine sound effect — metallic drawer clank plays on every gear scrap click
+- Attack sound effect — machine guitar loop plays while attacking an enemy tile, stops when battle ends
+- Sound directory (`public/sounds/`) with attribution file for all audio assets
+- `half-volume.sh` utility script for batch volume reduction
+
+### Changed
+- Issue tracking fully synced — all completed items moved to completed.md, rejected items to rejected.md
+- Core priorities and nice-to-haves cleared (all items shipped)
+- Easter egg bot indices fixed — Beebot and Mambabot now mapped to correct letters in "kaboom"
+
+### Fixed
+- Easter egg secret bot links out of sync — Beebot (index 42→45) and Mambabot (index 46→48) now target the correct characters in the tagline
+- Music toggle using per-scene sound manager instead of global — now uses `game.sound.mute` to affect all audio across scenes
+
 ## [0.7.1] — 2026-04-25
 
 ### Added
