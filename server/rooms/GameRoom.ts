@@ -157,19 +157,28 @@ export class GameRoom extends Room<GameState> {
       if (this.state.phase !== "active") return;
       if (!this.checkRateLimit(client.sessionId, "upgradeDefense")) return;
       const player = this.state.players.get(client.sessionId);
-      if (!player || player.absorbed) return;
+      if (!player) return;
       if (player.pendingAbsorption) return;
 
-      const cost = calculateUpgradeCost(player.defense);
-      if (player.resources < cost) return;
-      if (player.defense >= 50) return; // max cap
+      // Members can buy DEF bots — resolve to team leader
+      let leader = player;
+      if (player.absorbed && player.teamId) {
+        const teamLeader = this.state.players.get(player.teamId);
+        if (!teamLeader || teamLeader.absorbed) return;
+        leader = teamLeader;
+      }
+      if (leader.pendingAbsorption) return;
 
-      player.resources -= cost;
-      player.defense += 1;
+      const cost = calculateUpgradeCost(leader.defense);
+      if (leader.resources < cost) return;
+      if (leader.defense >= 50) return; // max cap
+
+      leader.resources -= cost;
+      leader.defense += 1;
 
       // Give one defense bot to every team member too
       this.state.players.forEach((p) => {
-        if (p.id !== player.id && p.teamId === player.id) {
+        if (p.id !== leader.id && p.teamId === leader.id) {
           p.defense += 1;
         }
       });
@@ -287,19 +296,28 @@ export class GameRoom extends Room<GameState> {
       if (this.state.phase !== "active") return;
       if (!this.checkRateLimit(client.sessionId, "upgradeCollection")) return;
       const player = this.state.players.get(client.sessionId);
-      if (!player || player.absorbed) return;
+      if (!player) return;
       if (player.pendingAbsorption) return;
 
-      const cost = calculateUpgradeCost(player.collection);
-      if (player.resources < cost) return;
-      if (player.collection >= 50) return; // max cap
+      // Members can buy COL bots — resolve to team leader
+      let leader = player;
+      if (player.absorbed && player.teamId) {
+        const teamLeader = this.state.players.get(player.teamId);
+        if (!teamLeader || teamLeader.absorbed) return;
+        leader = teamLeader;
+      }
+      if (leader.pendingAbsorption) return;
 
-      player.resources -= cost;
-      player.collection += 1;
+      const cost = calculateUpgradeCost(leader.collection);
+      if (leader.resources < cost) return;
+      if (leader.collection >= 50) return; // max cap
+
+      leader.resources -= cost;
+      leader.collection += 1;
 
       // Give one collection bot to every team member too
       this.state.players.forEach((p) => {
-        if (p.id !== player.id && p.teamId === player.id) {
+        if (p.id !== leader.id && p.teamId === leader.id) {
           p.collection += 1;
         }
       });
@@ -1112,20 +1130,18 @@ export class GameRoom extends Room<GameState> {
       // Gather leader's owned tiles
       const ownedTiles = this.state.tiles.filter((t) => t.ownerId === leader.id);
 
-      // Try to mine a gear first (on owned tiles or unclaimed tiles adjacent to territory)
+      // Try to mine a gear first (on owned tiles or any unclaimed tile)
       for (const t of this.state.tiles) {
         if (!t.hasGear || t.gearScrap <= 0) continue;
         if (t.ownerId !== "" && t.ownerId !== leader.id) continue; // skip enemy-owned gears
-        if (t.ownerId === leader.id || isAdjacent(t.x, t.y, ownedTiles)) {
-          let factoryCount = 0;
-          ownedTiles.forEach((ot) => { if (ot.isSpawn) factoryCount++; });
-          const multiplier = Math.max(1, factoryCount);
-          const extracted = Math.min(5 * multiplier, t.gearScrap);
-          t.gearScrap -= extracted;
-          leader.resources += extracted;
-          if (t.gearScrap <= 0) t.hasGear = false;
-          break; // one mine action per tick
-        }
+        let factoryCount = 0;
+        ownedTiles.forEach((ot) => { if (ot.isSpawn) factoryCount++; });
+        const multiplier = Math.max(1, factoryCount);
+        const extracted = Math.min(5 * multiplier, t.gearScrap);
+        t.gearScrap -= extracted;
+        leader.resources += extracted;
+        if (t.gearScrap <= 0) t.hasGear = false;
+        break; // one mine action per tick
       }
 
       // Absorbed AI only mines — doesn't claim or upgrade (leader handles that)
@@ -1440,8 +1456,24 @@ export class GameRoom extends Room<GameState> {
                   p.teamName = defender.teamName;
                 }
               });
-              // Detach the factory owner from the team (they go "free agent" until reclaimed)
-              factoryOwner.teamId = factoryOwner.id;
+
+              // Add the adjective to the attacker's team name
+              const alreadyHasAdj = attacker.teamName.includes(adj);
+              if (!alreadyHasAdj) {
+                attacker.teamName = `${adj} ${attacker.teamName}`;
+                // Propagate to all attacker's team members
+                this.state.players.forEach((p) => {
+                  if (p.teamId === battle.attackerId && p.id !== battle.attackerId) {
+                    p.teamName = attacker.teamName;
+                  }
+                });
+              }
+
+              // Transfer the factory owner to the attacker's team
+              factoryOwner.teamId = battle.attackerId;
+              factoryOwner.absorbed = true;
+              factoryOwner.isTeamLead = false;
+              factoryOwner.teamName = attacker.teamName;
             }
           }
 
